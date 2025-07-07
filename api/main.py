@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routes import sessions, cards
+from routes import cards, auth, admin
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(root_path='/api')
@@ -12,5 +12,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(sessions.router)
+app.include_router(auth.router)
 app.include_router(cards.router)
+app.include_router(admin.router)

@@ -12,13 +12,21 @@ export default function Navbar() {
 
         {/* Desktop Nav */}
         <div className="hidden md:flex space-x-4">
-          <Link
+        <Link
             to="/create"
             className={`px-3 py-1 border rounded hover:bg-gray-100 transition ${
               location.pathname === '/create' ? 'bg-gray-200' : ''
             }`}
           >
             Create
+          </Link>
+          <Link
+            to="/unlock"
+            className={`px-3 py-1 border rounded hover:bg-gray-100 transition ${
+              location.pathname === '/unlock' ? 'bg-gray-200' : ''
+            }`}
+          >
+            Unlock
           </Link>
           <Link
             to="/"
@@ -63,6 +71,13 @@ export default function Navbar() {
             onClick={() => setMenuOpen(false)}
           >
             Create
+          </Link>
+          <Link
+            to="/unlock"
+            className="block px-3 py-1 border rounded hover:bg-gray-100 transition"
+            onClick={() => setMenuOpen(false)}
+          >
+            Unlock
           </Link>
           <Link
             to="/"

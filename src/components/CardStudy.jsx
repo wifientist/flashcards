@@ -68,15 +68,9 @@ export default function CardStudy() {
   const currentCard = cards[currentIndex];
 
   return (
-    <div {...handlers} className="flex flex-col h-screen bg-gray-50">
-      {/* Reduced spacer for navbar */}
-      <div className="h-0 flex-shrink-0"></div>
-      
-      {/* Flip Card Container - takes available space minus fixed bottom nav */}
-      <div 
-        className="perspective px-4 flex items-center justify-center overflow-hidden flex-1"
-        style={{ paddingBottom: '5rem' }}
-      >
+    <div {...handlers} className="flex flex-col" style={{ height: 'calc(100vh - 5rem)' }}>
+      {/* Flip Card Container - 80% of available height */}
+      <div className="h-5/6 perspective px-4 pt-4 flex items-center justify-center overflow-hidden">
         <div
           onClick={() => !isAnimating && setFlipped(!flipped)}
           className={`relative w-full h-full max-w-2xl mx-auto transition-all duration-500 transform cursor-pointer
@@ -94,7 +88,7 @@ export default function CardStudy() {
                style={{ backfaceVisibility: 'hidden' }}>
             {currentCard.front}
           </div>
-
+  
           {/* Back Face */}
           <div className="absolute w-full h-full bg-white border rounded-lg shadow-lg flex items-center justify-center text-2xl text-center p-6 transform rotate-y-180" 
                style={{ backfaceVisibility: 'hidden' }}>
@@ -102,26 +96,25 @@ export default function CardStudy() {
           </div>
         </div>
       </div>
-
-      {/* Navigation Arrows - fixed at bottom */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-50 py-4 px-4 border-t border-gray-200">
-        <div className="flex justify-center">
-          <div className="flex justify-between w-full max-w-xs space-x-8">
-            <button
-              onClick={handlePrev}
-              className="px-4 py-2 border rounded hover:bg-gray-100 transition bg-white"
-            >
-              ⬅️ Prev
-            </button>
-            <button
-              onClick={handleNext}
-              className="px-4 py-2 border rounded hover:bg-gray-100 transition bg-white"
-            >
-              Next ➡️
-            </button>
-          </div>
+  
+      {/* Navigation Arrows - 20% of screen height */}
+      <div className="h-1/6 flex items-center justify-center px-4">
+        <div className="flex justify-between w-full max-w-xs space-x-8">
+          <button
+            onClick={handlePrev}
+            className="px-4 py-2 border rounded hover:bg-gray-100 transition bg-white"
+          >
+            ⬅️ Prev
+          </button>
+          <button
+            onClick={handleNext}
+            className="px-4 py-2 border rounded hover:bg-gray-100 transition bg-white"
+          >
+            Next ➡️
+          </button>
         </div>
       </div>
     </div>
   );
+
 }

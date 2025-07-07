@@ -1,10 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends, Request, Response
+from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import List, Optional
-from redis_client import r1  #r1 is db1 which is the cards db for this
-from routes.sessions import get_current_user
+from redis_client import r1  # r1 is db1 which is the cards db for this
 from models import CardCreate
 import uuid
 import json
+from roles import require_roles, require_authenticated
 
 router = APIRouter()
 
@@ -15,7 +15,9 @@ def make_label_key(user_id, label):
     return f"label:{user_id}:{label}"
 
 @router.post("/cards")
-def create_card(card: CardCreate, user_id: str = Depends(get_current_user)):
+def create_card(card: CardCreate, payload=Depends(require_roles(["admin", "editor"]))):
+    user_id = payload["session_id"]  # Using session_id as user identifier for now
+
     card_id = str(uuid.uuid4())
     card_key = make_card_key(user_id, card_id)
 
@@ -35,7 +37,9 @@ def create_card(card: CardCreate, user_id: str = Depends(get_current_user)):
     return {"message": "Card created", "card_id": card_id}
 
 @router.get("/cards")
-def get_cards(label: Optional[str] = None, user_id: str = Depends(get_current_user)):
+def get_cards(request: Request, label: Optional[str] = None, payload=Depends(require_authenticated)):
+    user_id = payload["session_id"]
+
     card_keys = []
 
     if label:
@@ -44,10 +48,9 @@ def get_cards(label: Optional[str] = None, user_id: str = Depends(get_current_us
     else:
         # Scan all cards for user
         cursor = 0
-        #pattern = f"card:{user_id}:*" #for specific to a user
-        pattern = f"card:*"
+        pattern = f"card:*" #{user_id}:*" #dont want to filter by userid anymore 
         while True:
-            cursor, keys = r1.scan(cursor=cursor, match=pattern, count=100)
+            cursor, keys = r1.scan(cursor=cursor, match=pattern, count=100)  #TODO remove count limit probably
             card_keys.extend(keys)
             if cursor == 0:
                 break
@@ -62,8 +65,10 @@ def get_cards(label: Optional[str] = None, user_id: str = Depends(get_current_us
     return {"cards": cards}
 
 @router.put("/cards/{card_id}")
-def update_card(card_id: str, front: Optional[str] = None, back: Optional[str] = None, labels: Optional[List[str]] = None, user_id: str = Depends(get_current_user)):
+def update_card(card_id: str, front: Optional[str] = None, back: Optional[str] = None, labels: Optional[List[str]] = None, payload=Depends(require_roles(["admin", "editor"]))):
+    user_id = payload["session_id"]
     card_key = make_card_key(user_id, card_id)
+
     if not r1.exists(card_key):
         raise HTTPException(status_code=404, detail="Card not found")
 
@@ -86,8 +91,10 @@ def update_card(card_id: str, front: Optional[str] = None, back: Optional[str] =
     return {"message": "Card updated"}
 
 @router.delete("/cards/{card_id}")
-def delete_card(card_id: str, user_id: str = Depends(get_current_user)):
+def delete_card(card_id: str, payload=Depends(require_roles(["admin", "editor"]))):
+    user_id = payload["session_id"]
     card_key = make_card_key(user_id, card_id)
+
     if not r1.exists(card_key):
         raise HTTPException(status_code=404, detail="Card not found")
 
