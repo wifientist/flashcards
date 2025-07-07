@@ -3,28 +3,40 @@ from fastapi.responses import JSONResponse
 from redis_client import r0
 from jwt_utils import create_access_token, create_refresh_token, verify_token
 import os
-from roles import require_authenticated
+from roles import require_authenticated, get_current_session
+from models import AuthRequest, SessionInfo  # Import the new models
 import uuid
 from datetime import datetime
-
+from dotenv import load_dotenv
+load_dotenv()
 
 router = APIRouter(prefix='/auth')
 
 ROLE_PASSWORDS = {
-    "admin": os.getenv("ADMIN_PASSWORD", "adminpass"),
-    "user": os.getenv("USER_PASSWORD", "userpass"),
+    "admin": os.getenv("ADMIN_PASSWORD"),
+    "user": os.getenv("USER_PASSWORD"),
 }
 
-@router.get("/whoami")
-def whoami(request: Request, payload=Depends(require_authenticated)):
-    return {
-        "session_id": payload["session_id"],
-        "roles": payload.get("roles", []),
-        "authenticated": payload.get("authenticated", False)
-    }
+@router.get("/whoami", response_model=SessionInfo)
+def whoami(request: Request, payload=Depends(get_current_session)):
+    """Get current session info - works for both authenticated and unauthenticated sessions"""
+    if not payload:
+        return SessionInfo(
+            session_id=None,
+            roles=["guest"],
+            authenticated=False,
+            message="No active session"
+        )
+    
+    return SessionInfo(
+        session_id=payload["session_id"],
+        roles=payload.get("roles", ["guest"]),
+        authenticated=payload.get("authenticated", False)
+    )
 
 @router.post("/auth")
-async def unlock(request: Request, data: dict):
+async def unlock(request: Request, auth_request: AuthRequest):
+    """Authenticate with password to upgrade session"""
     token = request.cookies.get("access_token")
     payload = verify_token(token)
     if not payload:
@@ -36,7 +48,7 @@ async def unlock(request: Request, data: dict):
     if not r0.exists(redis_key):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session not found")
 
-    input_password = data.get("password")
+    input_password = auth_request.password
 
     matched_roles = []
     for role, password in ROLE_PASSWORDS.items():
@@ -53,12 +65,13 @@ async def unlock(request: Request, data: dict):
     })
 
     new_access_token = create_access_token(session_id, roles=matched_roles, authenticated=True)
-    response = JSONResponse({"success": True})
+    response = JSONResponse({"success": True, "roles": matched_roles})
     response.set_cookie("access_token", new_access_token, httponly=True, max_age=900)
     return response
 
 @router.post("/start-session")
 def start_session(response: Response):
+    """Start a new unauthenticated session"""
     session_id = str(uuid.uuid4())
     redis_key = f"session:{session_id}"
 
@@ -77,6 +90,7 @@ def start_session(response: Response):
 
 @router.post("/refresh")
 async def refresh_token(request: Request):
+    """Refresh access token using refresh token"""
     refresh_token = request.cookies.get("refresh_token")
     payload = verify_token(refresh_token)
     if not payload:
@@ -96,3 +110,10 @@ async def refresh_token(request: Request):
     response = JSONResponse({"success": True})
     response.set_cookie("access_token", new_access_token, httponly=True, max_age=900)
     return response
+
+@router.post("/logout")
+def logout(request: Request, response: Response):
+    """Logout - clear cookies and optionally invalidate session"""
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+    return {"message": "Logged out successfully"}
