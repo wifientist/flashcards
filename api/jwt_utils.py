@@ -25,8 +25,15 @@ def create_refresh_token(session_id: str):
     }
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_DECODE_ALGO)
 
-def verify_token(token: str):
+def verify_token(token):
+    """Verify JWT token and return payload"""
+    if not token:
+        return None
     try:
         return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_DECODE_ALGO])
-    except JWTError:
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+    except Exception:
         return None
