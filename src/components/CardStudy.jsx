@@ -16,6 +16,7 @@ export default function CardStudy() {
         if (!response.ok) throw new Error('Failed to fetch cards');
         const data = await response.json();
         setCards(data.cards);
+        console.log(data.cards);
       } catch (err) {
         console.error(err);
         alert('Error fetching cards');

@@ -4,8 +4,7 @@ from redis_client import r1  # r1 is db1 which is the cards db for this
 from models import CardCreate, CardUpdate, ProgressUpdate, ProgressStatus
 import uuid
 import json
-from datetime import datetime
-from roles import require_roles, get_current_user, require_authenticated
+from roles import require_roles, get_current_session
 
 router = APIRouter()
 
@@ -17,9 +16,9 @@ def make_label_key(label):
     """Labels are global, not user-specific"""
     return f"label:{label}"
 
-def make_user_progress_key(user_id, card_id):
+def make_user_progress_key(session_id, card_id):
     """User-specific progress/notes for cards"""
-    return f"progress:{user_id}:{card_id}"
+    return f"progress:{session_id}:{card_id}"
 
 @router.post("/cards")
 def create_card(card: CardCreate, payload=Depends(require_roles(["admin"]))):
@@ -32,8 +31,8 @@ def create_card(card: CardCreate, payload=Depends(require_roles(["admin"]))):
         "front": card.front,
         "back": card.back,
         "labels": json.dumps(card.labels or []),
-        "created_by": payload["user_id"],
-        "created_at": datetime.utcnow().isoformat()
+        "created_by": payload["session_id"],
+        "created_at": json.dumps({"timestamp": "now"})  # You might want to use actual timestamp
     }
     
     r1.hset(card_key, mapping=card_data)
@@ -48,7 +47,7 @@ def create_card(card: CardCreate, payload=Depends(require_roles(["admin"]))):
     return {"message": "Card created", "card_id": card_id}
 
 @router.get("/cards")
-def get_cards(request: Request, label: Optional[str] = None, payload=Depends(get_current_user)):
+def get_cards(request: Request, label: Optional[str] = None, payload=Depends(get_current_session)):
     """Get cards - public endpoint, but shows different data based on auth"""
     
     card_ids = set()
@@ -69,8 +68,8 @@ def get_cards(request: Request, label: Optional[str] = None, payload=Depends(get
             
             # Add user-specific progress if authenticated
             if payload and payload.get("authenticated"):
-                user_id = payload["user_id"]
-                progress_key = make_user_progress_key(user_id, card_id)
+                session_id = payload["session_id"]
+                progress_key = make_user_progress_key(session_id, card_id)
                 progress = r1.hgetall(progress_key)
                 if progress:
                     card["user_progress"] = {
@@ -92,7 +91,7 @@ def get_cards(request: Request, label: Optional[str] = None, payload=Depends(get
     return {"cards": cards}
 
 @router.get("/cards/{card_id}")
-def get_card(card_id: str, request: Request, payload=Depends(get_current_user)):
+def get_card(card_id: str, request: Request, payload=Depends(get_current_session)):
     """Get a specific card - public endpoint"""
     card_key = make_card_key(card_id)
     card = r1.hgetall(card_key)
@@ -104,8 +103,8 @@ def get_card(card_id: str, request: Request, payload=Depends(get_current_user)):
     
     # Add user-specific progress if authenticated
     if payload and payload.get("authenticated"):
-        user_id = payload["user_id"]
-        progress_key = make_user_progress_key(user_id, card_id)
+        session_id = payload["session_id"]
+        progress_key = make_user_progress_key(session_id, card_id)
         progress = r1.hgetall(progress_key)
         if progress:
             card["user_progress"] = {
@@ -176,15 +175,15 @@ def delete_card(card_id: str, payload=Depends(require_roles(["admin"]))):
 
 # User progress endpoints
 @router.put("/cards/{card_id}/progress")
-def update_card_progress(card_id: str, progress_update: ProgressUpdate, payload=Depends(require_authenticated)):
+def update_card_progress(card_id: str, progress_update: ProgressUpdate, payload=Depends(require_roles(["user", "admin"]))):
     """Update user's progress on a card - authenticated users only"""
     card_key = make_card_key(card_id)
     
     if not r1.exists(card_key):
         raise HTTPException(status_code=404, detail="Card not found")
     
-    user_id = payload["user_id"]
-    progress_key = make_user_progress_key(user_id, card_id)
+    session_id = payload["session_id"]
+    progress_key = make_user_progress_key(session_id, card_id)
     
     updates = {}
     if progress_update.notes is not None:
@@ -193,7 +192,7 @@ def update_card_progress(card_id: str, progress_update: ProgressUpdate, payload=
         updates["status"] = progress_update.status.value
     
     # Always update last_reviewed and increment review_count
-    updates["last_reviewed"] = datetime.utcnow().isoformat()
+    updates["last_reviewed"] = json.dumps({"timestamp": "now"})  # Use actual timestamp
     
     # Get current review count and increment
     current_count = r1.hget(progress_key, "review_count") or "0"
@@ -204,13 +203,13 @@ def update_card_progress(card_id: str, progress_update: ProgressUpdate, payload=
     return {"message": "Progress updated"}
 
 @router.get("/my-progress")
-def get_my_progress(payload=Depends(require_authenticated)):
+def get_my_progress(payload=Depends(require_roles(["user", "admin"]))):
     """Get user's progress across all cards"""
-    user_id = payload["user_id"]
+    session_id = payload["session_id"]
     
     # Find all progress entries for this user
     cursor = 0
-    pattern = f"progress:{user_id}:*"
+    pattern = f"progress:{session_id}:*"
     progress_entries = []
     
     while True:
@@ -225,48 +224,6 @@ def get_my_progress(payload=Depends(require_authenticated)):
             break
     
     return {"progress": progress_entries}
-
-@router.get("/my-progress/summary")
-def get_my_progress_summary(payload=Depends(require_authenticated)):
-    """Get summary of user's progress statistics"""
-    user_id = payload["user_id"]
-    
-    # Find all progress entries for this user
-    cursor = 0
-    pattern = f"progress:{user_id}:*"
-    
-    status_counts = {
-        "new": 0,
-        "learning": 0,
-        "review": 0,
-        "mastered": 0,
-        "difficult": 0
-    }
-    
-    total_cards = 0
-    total_reviews = 0
-    
-    while True:
-        cursor, keys = r1.scan(cursor=cursor, match=pattern, count=100)
-        for key in keys:
-            progress = r1.hgetall(key)
-            if progress:
-                total_cards += 1
-                status = progress.get("status", "new")
-                if status in status_counts:
-                    status_counts[status] += 1
-                
-                review_count = int(progress.get("review_count", 0))
-                total_reviews += review_count
-        
-        if cursor == 0:
-            break
-    
-    return {
-        "total_cards_studied": total_cards,
-        "total_reviews": total_reviews,
-        "status_breakdown": status_counts
-    }
 
 @router.get("/labels")
 def get_labels():
@@ -285,100 +242,3 @@ def get_labels():
             break
     
     return {"labels": labels}
-
-@router.get("/cards/by-status/{status}")
-def get_cards_by_status(status: str, payload=Depends(require_authenticated)):
-    """Get cards filtered by user's progress status"""
-    user_id = payload["user_id"]
-    
-    # Validate status
-    try:
-        ProgressStatus(status)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid status")
-    
-    # Find all progress entries for this user with the specified status
-    cursor = 0
-    pattern = f"progress:{user_id}:*"
-    matching_card_ids = []
-    
-    while True:
-        cursor, keys = r1.scan(cursor=cursor, match=pattern, count=100)
-        for key in keys:
-            progress = r1.hgetall(key)
-            if progress and progress.get("status") == status:
-                card_id = key.split(":")[-1]
-                matching_card_ids.append(card_id)
-        
-        if cursor == 0:
-            break
-    
-    # If looking for "new" status, also include cards with no progress
-    if status == "new":
-        all_cards = r1.smembers("cards:all")
-        for card_id in all_cards:
-            progress_key = make_user_progress_key(user_id, card_id)
-            if not r1.exists(progress_key):
-                matching_card_ids.append(card_id)
-    
-    # Get card details
-    cards = []
-    for card_id in matching_card_ids:
-        card_key = make_card_key(card_id)
-        card = r1.hgetall(card_key)
-        if card:
-            card["labels"] = json.loads(card.get("labels", "[]"))
-            
-            # Add user progress
-            progress_key = make_user_progress_key(user_id, card_id)
-            progress = r1.hgetall(progress_key)
-            if progress:
-                card["user_progress"] = {
-                    "notes": progress.get("notes", ""),
-                    "status": progress.get("status", "new"),
-                    "last_reviewed": progress.get("last_reviewed"),
-                    "review_count": int(progress.get("review_count", 0))
-                }
-            else:
-                card["user_progress"] = {
-                    "notes": "",
-                    "status": "new",
-                    "last_reviewed": None,
-                    "review_count": 0
-                }
-            
-            cards.append(card)
-    
-    return {"cards": cards, "status": status, "count": len(cards)}
-
-@router.delete("/my-progress/{card_id}")
-def reset_card_progress(card_id: str, payload=Depends(require_authenticated)):
-    """Reset user's progress for a specific card"""
-    user_id = payload["user_id"]
-    progress_key = make_user_progress_key(user_id, card_id)
-    
-    if not r1.exists(progress_key):
-        raise HTTPException(status_code=404, detail="No progress found for this card")
-    
-    r1.delete(progress_key)
-    return {"message": "Progress reset for card"}
-
-@router.delete("/my-progress")
-def reset_all_progress(payload=Depends(require_authenticated)):
-    """Reset all progress for the current user"""
-    user_id = payload["user_id"]
-    
-    # Find all progress entries for this user
-    cursor = 0
-    pattern = f"progress:{user_id}:*"
-    deleted_count = 0
-    
-    while True:
-        cursor, keys = r1.scan(cursor=cursor, match=pattern, count=100)
-        if keys:
-            r1.delete(*keys)
-            deleted_count += len(keys)
-        if cursor == 0:
-            break
-    
-    return {"message": f"Reset progress for {deleted_count} cards"}

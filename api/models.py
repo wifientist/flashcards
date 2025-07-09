@@ -1,6 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from enum import Enum
+from datetime import datetime
 
 class RoleUpdateRequest(BaseModel):
     roles: list[str]
@@ -46,11 +47,49 @@ class Label(BaseModel):
     label: str
     card_count: int
 
-class AuthRequest(BaseModel):
+# class AuthRequest(BaseModel):
+#     password: str
+
+# class SessionInfo(BaseModel):
+#     session_id: Optional[str] = None
+#     roles: List[str] = ["guest"]
+#     authenticated: bool = False
+#     message: Optional[str] = None
+
+# New user-based authentication models
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    roles: Optional[List[str]] = ["user"]  # Default to user role
+
+class UserLogin(BaseModel):
+    email: EmailStr
     password: str
 
+class UserInfo(BaseModel):
+    user_id: str
+    email: str
+    roles: List[str]
+    created_at: str
+    last_login: Optional[str] = None
+
 class SessionInfo(BaseModel):
-    session_id: Optional[str] = None
+    user_id: Optional[str] = None
+    email: Optional[str] = None
     roles: List[str] = ["guest"]
     authenticated: bool = False
     message: Optional[str] = None
+
+class AuthRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+# User management models
+class User(BaseModel):
+    user_id: str
+    email: str
+    hashed_password: str
+    roles: List[str]
+    created_at: str
+    last_login: Optional[str] = None
+    is_active: bool = True

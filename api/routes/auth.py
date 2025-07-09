@@ -1,153 +1,187 @@
 from fastapi import APIRouter, Request, HTTPException, status, Depends, Response
 from fastapi.responses import JSONResponse
-from redis_client import r0
 from jwt_utils import create_access_token, create_refresh_token, verify_token
-import os
-from roles import require_authenticated, get_current_session
-from models import AuthRequest, SessionInfo  # Import the new models
-import uuid
+from roles import require_authenticated, get_current_user, require_admin
+from models import (
+    AuthRequest, SessionInfo, UserCreate, UserLogin, 
+    UserInfo, RoleUpdateRequest
+)
+from user_manager import user_manager
+from session_manager import session_manager
 from datetime import datetime
-from dotenv import load_dotenv
-load_dotenv()
+import uuid
 
 router = APIRouter(prefix='/auth')
-
-ROLE_PASSWORDS = {
-    "admin": os.getenv("ADMIN_PASSWORD"),
-    "user": os.getenv("USER_PASSWORD"),
-}
 
 @router.get("/health")
 def health_check():
     """Health check endpoint"""
     return {"status": "ok"}
 
-@router.get("/whoami", response_model=SessionInfo)
-def whoami(request: Request, payload=Depends(get_current_session)):
-    """Get current session info - works for both authenticated and unauthenticated sessions"""
+@router.post("/register")
+async def register(user_data: UserCreate):
+    """Register a new user"""
+    try:
+        user = user_manager.create_user(user_data)
+        return {
+            "message": "User created successfully",
+            "user_id": user.user_id,
+            "email": user.email
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
+@router.post("/login")
+async def login(response: Response, login_data: UserLogin):
+    """Authenticate user and create session"""
+    user = user_manager.authenticate_user(login_data.email, login_data.password)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+    
+    # Create session
+    session_id = session_manager.create_session(
+        user_id=user.user_id,
+        email=user.email,
+        roles=user.roles,
+        authenticated=True
+    )
+    
+    # Create tokens
+    access_token = create_access_token(
+        user_id=user.user_id,
+        email=user.email,
+        roles=user.roles,
+        authenticated=True
+    )
+    refresh_token = create_refresh_token(
+        user_id=user.user_id,
+        email=user.email
+    )
+    
+    # Set cookies
+    response.set_cookie("access_token", access_token, httponly=True, max_age=900)
+    response.set_cookie("refresh_token", refresh_token, httponly=True, max_age=604800)
+    response.set_cookie("session_id", session_id, httponly=True, max_age=604800)
+    
+    return {
+        "message": "Login successful",
+        "user": {
+            "user_id": user.user_id,
+            "email": user.email,
+            "roles": user.roles
+        }
+    }
+
+@router.get("/whoami", response_model=SessionInfo)
+def whoami(request: Request, payload=Depends(get_current_user)):
+    """Get current user info"""
     if not payload:
         return SessionInfo(
-            session_id=None,
+            user_id=None,
+            email=None,
             roles=["guest"],
             authenticated=False,
             message="No active session"
-        )    
+        )
+    
     return SessionInfo(
-        session_id=payload["session_id"],
+        user_id=payload.get("user_id"),
+        email=payload.get("email"),
         roles=payload.get("roles", ["guest"]),
         authenticated=payload.get("authenticated", False)
     )
 
-@router.post("/auth")
-async def unlock(request: Request, auth_request: AuthRequest):
-    """Authenticate with password to upgrade session"""
-    token = request.cookies.get("access_token")
-    
-    # If no token exists, create a new session first
-    if not token:
-        session_id = str(uuid.uuid4())
-        redis_key = f"session:{session_id}"
-        
-        # Create initial session in Redis
-        r0.hset(redis_key, mapping={
-            "created_at": datetime.utcnow().isoformat(),
-            "authenticated": "false",
-            "roles": "guest"
-        })
-    else:
-        # Verify existing token
-        try:
-            payload = verify_token(token)
-            if not payload:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-            
-            session_id = payload.get("session_id")
-            redis_key = f"session:{session_id}"
-            
-            if not r0.exists(redis_key):
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session not found")
-        except Exception as e:
-            # If token verification fails, create a new session
-            session_id = str(uuid.uuid4())
-            redis_key = f"session:{session_id}"
-            
-            r0.hset(redis_key, mapping={
-                "created_at": datetime.utcnow().isoformat(),
-                "authenticated": "false",
-                "roles": "guest"
-            })
-
-    # Validate password
-    input_password = auth_request.password
-    matched_roles = []
-    for role, password in ROLE_PASSWORDS.items():
-        if input_password == password:
-            matched_roles.append(role)
-
-    if not matched_roles:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password")
-
-    # Update Redis session with authentication
-    r0.hset(redis_key, mapping={
-        "authenticated": "true",
-        "roles": ",".join(matched_roles)
-    })
-
-    # Create new tokens
-    new_access_token = create_access_token(session_id, roles=matched_roles, authenticated=True)
-    new_refresh_token = create_refresh_token(session_id)
-    
-    response = JSONResponse({"success": True, "roles": matched_roles})
-    response.set_cookie("access_token", new_access_token, httponly=True, max_age=900)
-    response.set_cookie("refresh_token", new_refresh_token, httponly=True, max_age=604800)
-    return response
-
-@router.post("/start-session")
-def start_session(response: Response):
-    """Start a new unauthenticated session"""
-    session_id = str(uuid.uuid4())
-    redis_key = f"session:{session_id}"
-
-    r0.hset(redis_key, mapping={
-        "created_at": datetime.utcnow().isoformat(),
-        "authenticated": "false",
-        "roles": "guest"
-    })
-
-    access_token = create_access_token(session_id, roles=["guest"], authenticated=False)
-    refresh_token = create_refresh_token(session_id)
-
-    response.set_cookie("access_token", access_token, httponly=True, max_age=900)
-    response.set_cookie("refresh_token", refresh_token, httponly=True, max_age=604800)
-    return {"message": "Session started", "session_id": session_id}
-
 @router.post("/refresh")
-async def refresh_token(request: Request):
+async def refresh_token(request: Request, response: Response):
     """Refresh access token using refresh token"""
     refresh_token = request.cookies.get("refresh_token")
     payload = verify_token(refresh_token)
-    if not payload:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+    
+    if not payload or payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
 
-    session_id = payload.get("session_id")
-    redis_key = f"session:{session_id}"
+    user_id = payload.get("user_id")
+    user = user_manager.get_user_by_id(user_id)
+    
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive"
+        )
 
-    if not r0.exists(redis_key):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session not found")
-
-    session_data = r0.hgetall(redis_key)
-    roles = session_data.get("roles", "guest").split(",")
-    authenticated = session_data.get("authenticated") == "true"
-
-    new_access_token = create_access_token(session_id, roles=roles, authenticated=authenticated)
-    response = JSONResponse({"success": True})
+    # Create new access token
+    new_access_token = create_access_token(
+        user_id=user.user_id,
+        email=user.email,
+        roles=user.roles,
+        authenticated=True
+    )
+    
     response.set_cookie("access_token", new_access_token, httponly=True, max_age=900)
-    return response
+    return {"message": "Token refreshed successfully"}
 
 @router.post("/logout")
 def logout(request: Request, response: Response):
-    """Logout - clear cookies and optionally invalidate session"""
+    """Logout user and invalidate session"""
+    session_id = request.cookies.get("session_id")
+    
+    if session_id:
+        session_manager.invalidate_session(session_id)
+    
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
+    response.delete_cookie("session_id")
+    
     return {"message": "Logged out successfully"}
+
+@router.get("/users", dependencies=[Depends(require_admin)])
+def list_users():
+    """List all users (admin only)"""
+    
+    users = user_manager.list_users()
+    if users:
+        return {"users": users}
+    else:
+        return {"message": "No users found"}
+
+@router.put("/users/{user_id}/roles", dependencies=[Depends(require_admin)])
+def update_user_roles(user_id: str, role_update: RoleUpdateRequest):
+    """Update user roles (admin only)"""
+    user = user_manager.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    user_manager.update_user_roles(user_id, role_update.roles)
+    
+    # Invalidate user's sessions to force re-authentication with new roles
+    session_manager.invalidate_user_sessions(user_id)
+    
+    return {"message": "User roles updated successfully"}
+
+@router.delete("/users/{user_id}", dependencies=[Depends(require_admin)])
+def deactivate_user(user_id: str):
+    """Deactivate a user (admin only)"""
+    user = user_manager.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    user_manager.deactivate_user(user_id)
+    session_manager.invalidate_user_sessions(user_id)
+    
+    return {"message": "User deactivated successfully"}

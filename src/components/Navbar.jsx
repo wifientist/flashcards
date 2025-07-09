@@ -1,9 +1,24 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import LogoutButton from './LogoutButton';
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const location = useLocation(); // Optional: for active route highlighting
+  const location = useLocation();
+  const { user, loading, setUser } = useAuth();
+
+  const isActive = (path) => location.pathname === path ? 'bg-gray-200' : '';
+
+  const NavLink = ({ to, children }) => (
+    <Link
+      to={to}
+      className={`px-3 py-1 border rounded hover:bg-gray-100 transition ${isActive(to)}`}
+      onClick={() => setMenuOpen(false)}
+    >
+      {children}
+    </Link>
+  );
 
   return (
     <nav className="fixed top-0 w-full bg-white border-b z-50">
@@ -11,39 +26,18 @@ export default function Navbar() {
         <div className="text-lg font-bold">Flashcards</div>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex space-x-4">
-        <Link
-            to="/create"
-            className={`px-3 py-1 border rounded hover:bg-gray-100 transition ${
-              location.pathname === '/create' ? 'bg-gray-200' : ''
-            }`}
-          >
-            Create
-          </Link>
-          <Link
-            to="/unlock"
-            className={`px-3 py-1 border rounded hover:bg-gray-100 transition ${
-              location.pathname === '/unlock' ? 'bg-gray-200' : ''
-            }`}
-          >
-            Unlock
-          </Link>
-          <Link
-            to="/"
-            className={`px-3 py-1 border rounded hover:bg-gray-100 transition ${
-              location.pathname === '/' ? 'bg-gray-200' : ''
-            }`}
-          >
-            View
-          </Link>
-          <Link
-            to="/study"
-            className={`px-3 py-1 border rounded hover:bg-gray-100 transition ${
-              location.pathname === '/study' ? 'bg-gray-200' : ''
-            }`}
-          >
-            Study
-          </Link>
+        <div className="hidden md:flex space-x-4 items-center">
+          <NavLink to="/view">View</NavLink>
+          {user && <NavLink to="/create">Create</NavLink>}
+          {user && <NavLink to="/study">Study</NavLink>}
+          {user?.roles.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
+          {!user && <NavLink to="/login">Login</NavLink>}
+          {user && (
+            <>
+              <span className="text-sm text-gray-600">Hi, {user.email}</span>
+              <LogoutButton onLogout={() => setUser(null)} />
+            </>
+          )}
         </div>
 
         {/* Hamburger Button */}
@@ -65,34 +59,17 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {menuOpen && (
         <div className="md:hidden bg-white border-t p-4 space-y-2">
-          <Link
-            to="/create"
-            className="block px-3 py-1 border rounded hover:bg-gray-100 transition"
-            onClick={() => setMenuOpen(false)}
-          >
-            Create
-          </Link>
-          <Link
-            to="/unlock"
-            className="block px-3 py-1 border rounded hover:bg-gray-100 transition"
-            onClick={() => setMenuOpen(false)}
-          >
-            Unlock
-          </Link>
-          <Link
-            to="/"
-            className="block px-3 py-1 border rounded hover:bg-gray-100 transition"
-            onClick={() => setMenuOpen(false)}
-          >
-            View
-          </Link>
-          <Link
-            to="/study"
-            className="block px-3 py-1 border rounded hover:bg-gray-100 transition"
-            onClick={() => setMenuOpen(false)}
-          >
-            Study
-          </Link>
+          <NavLink to="/">View</NavLink>
+          {user && <NavLink to="/create">Create</NavLink>}
+          {user && <NavLink to="/study">Study</NavLink>}
+          {user?.roles.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
+          {!user && <NavLink to="/unlock">Login</NavLink>}
+          {user && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">{user.email}</span>
+              <LogoutButton onLogout={() => setUser(null)} />
+            </div>
+          )}
         </div>
       )}
     </nav>

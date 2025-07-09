@@ -3,11 +3,18 @@ import React, { useEffect, useState } from 'react';
 export default function AdminPage() {
   const [sessions, setSessions] = useState([]);
   const [newRoles, setNewRoles] = useState({});
+  const [users, setUsers] = useState([]);
 
   useEffect(() => {
     fetch('/api/admin/sessions', { credentials: 'include' })
       .then(res => res.json())
       .then(data => setSessions(data.sessions));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/auth/users', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => setUsers(data.users));
   }, []);
 
   const handleRoleChange = (sessionId, roles) => {
@@ -31,6 +38,14 @@ export default function AdminPage() {
 
   return (
     <div className="p-4">
+      <h1 className="text-2xl mb-4">Admin Dashboard</h1>
+      <h2 className="text-xl mb-4">Users</h2>
+      {users.map(user => (
+        <div key={user.user_id} className="border p-4 mb-2">
+          <p><strong>User:</strong> {user.email}</p>
+          <p><strong>Roles:</strong> {user.roles.join(', ')}</p>
+        </div>
+      ))}
       <h2 className="text-xl mb-4">Active Sessions</h2>
       {sessions.map(session => (
         <div key={session.session_id} className="border p-4 mb-2">

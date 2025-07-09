@@ -15,6 +15,7 @@ export default function CardViewer() {
         if (!response.ok) throw new Error('Failed to fetch cards');
         const data = await response.json();
         setCards(data.cards);
+        console.log(data.cards);
       } catch (err) {
         console.error(err);
         alert('Error fetching cards');
@@ -34,7 +35,7 @@ export default function CardViewer() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4 text-center">Your Flashcards</h2>
+      <h2 className="text-2xl font-bold mb-4 text-center">All Flashcards</h2>
 
       <div className="mb-4 flex justify-center">
         <input
