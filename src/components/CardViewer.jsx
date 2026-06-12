@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import TagInput from './TagInput';
 
 export default function CardViewer() {
   const { user } = useAuth();
@@ -11,10 +12,11 @@ export default function CardViewer() {
   const [filter, setFilter] = useState('');
   const [deckId, setDeckId] = useState('');
   const [decks, setDecks] = useState([]);
+  const [labelSuggestions, setLabelSuggestions] = useState([]);
   const [scope, setScope] = useState('all'); // 'all' | 'mine'
   const [flipped, setFlipped] = useState({});
   const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ front: '', back: '', labels: '', deck_id: '' });
+  const [editForm, setEditForm] = useState({ front: '', back: '', labels: [], deck_id: '' });
   const [error, setError] = useState('');
 
   const canModify = (card) =>
@@ -22,6 +24,7 @@ export default function CardViewer() {
 
   useEffect(() => {
     api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
+    api.get('/api/labels').then((d) => setLabelSuggestions((d.labels || []).map((l) => l.label))).catch(() => {});
   }, []);
 
   const deckName = useCallback(
@@ -70,7 +73,7 @@ export default function CardViewer() {
     setEditForm({
       front: card.front,
       back: card.back,
-      labels: (card.labels || []).join(', '),
+      labels: card.labels || [],
       deck_id: card.deck_id || '',
     });
   };
@@ -81,7 +84,7 @@ export default function CardViewer() {
       await api.put(`/api/cards/${cardId}`, {
         front: editForm.front,
         back: editForm.back,
-        labels: editForm.labels.split(',').map((l) => l.trim()).filter(Boolean),
+        labels: editForm.labels,
         deck_id: editForm.deck_id || null,
       });
       setEditingId(null);
@@ -153,6 +156,7 @@ export default function CardViewer() {
                 setForm={setEditForm}
                 decks={decks}
                 allowDeck={isAdmin}
+                labelSuggestions={labelSuggestions}
                 onSave={() => saveEdit(card.card_id)}
                 onCancel={() => setEditingId(null)}
               />
@@ -168,10 +172,19 @@ export default function CardViewer() {
                     )}
                   </p>
                   <p className="mb-2">{flipped[card.card_id] ? card.back : card.front}</p>
-                  <p className="text-sm text-gray-500">
-                    {card.labels?.length ? `Labels: ${card.labels.join(', ')}` : 'No labels'}
-                    {deckName(card.deck_id) && ` · Deck: ${deckName(card.deck_id)}`}
-                  </p>
+                  <div className="flex flex-wrap gap-1 items-center text-sm text-gray-500">
+                    {card.labels?.map((l) => (
+                      <button
+                        key={l}
+                        onClick={(e) => { e.stopPropagation(); setFilter(l); }}
+                        title={`Filter by ${l}`}
+                        className="bg-gray-100 hover:bg-blue-100 text-gray-700 rounded px-2 py-0.5 text-xs"
+                      >
+                        #{l}
+                      </button>
+                    ))}
+                    {deckName(card.deck_id) && <span className="text-xs">· Deck: {deckName(card.deck_id)}</span>}
+                  </div>
                   <p className="text-xs text-blue-500 mt-2">Click to flip</p>
                 </div>
                 {(canModify(card) || (isAdmin && card.owner_id)) && (
@@ -202,7 +215,7 @@ export default function CardViewer() {
   );
 }
 
-function CardEditForm({ form, setForm, decks, allowDeck, onSave, onCancel }) {
+function CardEditForm({ form, setForm, decks, allowDeck, labelSuggestions, onSave, onCancel }) {
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
   return (
     <div className="bg-white border border-blue-300 rounded shadow p-4 space-y-2">
@@ -210,8 +223,12 @@ function CardEditForm({ form, setForm, decks, allowDeck, onSave, onCancel }) {
       <input value={form.front} onChange={set('front')} className="w-full border p-2 rounded" />
       <label className="block text-sm font-semibold">Back</label>
       <input value={form.back} onChange={set('back')} className="w-full border p-2 rounded" />
-      <label className="block text-sm font-semibold">Labels (comma-separated)</label>
-      <input value={form.labels} onChange={set('labels')} className="w-full border p-2 rounded" />
+      <label className="block text-sm font-semibold">Labels</label>
+      <TagInput
+        tags={form.labels}
+        onChange={(labels) => setForm((f) => ({ ...f, labels }))}
+        suggestions={labelSuggestions}
+      />
       {allowDeck && (
         <>
           <label className="block text-sm font-semibold">Deck</label>

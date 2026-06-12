@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import TagInput from './TagInput';
 
 export default function CardAdder() {
   const { user } = useAuth();
@@ -8,7 +9,8 @@ export default function CardAdder() {
 
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
-  const [labels, setLabels] = useState('');
+  const [labels, setLabels] = useState([]);
+  const [labelSuggestions, setLabelSuggestions] = useState([]);
   const [deckId, setDeckId] = useState('');
   const [decks, setDecks] = useState([]);
   // Admins choose: public app card vs their own private card.
@@ -16,6 +18,7 @@ export default function CardAdder() {
 
   useEffect(() => {
     if (isAdmin) api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
+    api.get('/api/labels').then((d) => setLabelSuggestions((d.labels || []).map((l) => l.label))).catch(() => {});
   }, [isAdmin]);
 
   // A public deck only applies to a public card.
@@ -23,21 +26,18 @@ export default function CardAdder() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const labelArray = labels.split(',').map(label => label.trim()).filter(label => label);
-
     try {
       await api.post('/api/cards', {
         front,
         back,
-        labels: labelArray,
+        labels,
         deck_id: asPublic ? (deckId || null) : null,
         private: isAdmin ? makePrivate : true,
       });
       alert('Card created!');
       setFront('');
       setBack('');
-      setLabels('');
+      setLabels([]);
     } catch (err) {
       alert('Error: ' + err.message);
     }
@@ -95,13 +95,8 @@ export default function CardAdder() {
       </div>
 
       <div>
-        <label className="block text-gray-700 mb-1">Labels (comma-separated):</label>
-        <input
-          type="text"
-          value={labels}
-          onChange={(e) => setLabels(e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <label className="block text-gray-700 mb-1">Labels:</label>
+        <TagInput tags={labels} onChange={setLabels} suggestions={labelSuggestions} />
       </div>
 
       {asPublic && (
