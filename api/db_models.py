@@ -112,3 +112,22 @@ class Progress(Base):
 
     user = relationship("User", back_populates="progress")
     card = relationship("Card", back_populates="progress")
+
+
+class CardProposal(Base):
+    """A user-proposed change to a card's content, reviewed by an admin.
+    Stored separately so it never mutates the card until accepted."""
+    __tablename__ = "card_proposals"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    card_id = Column(String, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False, index=True)
+    proposer_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    # Proposed values (a complete suggested version of the card).
+    front = Column(Text, nullable=False)
+    back = Column(Text, nullable=False)
+    labels = Column(ARRAY(String), nullable=False, default=list)
+    note = Column(Text, nullable=True)            # optional rationale
+    status = Column(String, nullable=False, default="pending", server_default="pending")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    reviewed_at = Column(DateTime, nullable=True)
+    reviewed_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routes import cards, auth, admin, study, decks, io
+from routes import cards, auth, admin, study, decks, io, proposals
 from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS
 
@@ -21,3 +21,4 @@ app.include_router(admin.router)
 app.include_router(study.router)
 app.include_router(decks.router)
 app.include_router(io.router)
+app.include_router(proposals.router)

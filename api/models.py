@@ -39,6 +39,12 @@ class ImportRequest(BaseModel):
 class CopyRequest(BaseModel):
     deck_id: Optional[str] = None  # target public deck (null = deck-less)
 
+class ProposalCreate(BaseModel):
+    front: str
+    back: str
+    labels: Optional[List[str]] = []
+    note: Optional[str] = None
+
 class ProgressStatus(str, Enum):
     NEW = "new"
     LEARNING = "learning"

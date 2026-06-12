@@ -18,6 +18,28 @@ export default function AdminPage() {
   const [auditCards, setAuditCards] = useState([]);
   const [copyTarget, setCopyTarget] = useState(null);
 
+  // Proposed card changes to review.
+  const [proposals, setProposals] = useState([]);
+  const [proposalFilter, setProposalFilter] = useState('pending');
+
+  const loadProposals = useCallback(async (status) => {
+    try {
+      const d = await api.get(`/api/proposals?status=${status}`);
+      setProposals(d.proposals || []);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
+  const reviewProposal = async (id, action) => {
+    try {
+      await api.post(`/api/proposals/${id}/${action}`);
+      await loadProposals(proposalFilter);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const loadAuditCards = useCallback(async (uid) => {
     if (!uid) { setAuditCards([]); return; }
     try {
@@ -56,6 +78,10 @@ export default function AdminPage() {
     loadUsers();
     loadSessions();
   }, [loadUsers, loadSessions]);
+
+  useEffect(() => {
+    loadProposals(proposalFilter);
+  }, [loadProposals, proposalFilter]);
 
   const toggleRole = async (u, role) => {
     const has = (u.roles || []).includes(role);
@@ -219,6 +245,54 @@ export default function AdminPage() {
             })}
           </tbody>
         </table>
+      </div>
+
+      <h2 className="text-xl font-semibold mb-2">Proposed changes</h2>
+      <div className="border rounded p-4 mb-8 bg-white">
+        <div className="flex gap-2 mb-3 text-sm">
+          {['pending', 'accepted', 'rejected'].map((f) => (
+            <button
+              key={f}
+              onClick={() => setProposalFilter(f)}
+              className={`px-3 py-1 rounded capitalize ${proposalFilter === f ? 'bg-blue-600 text-white' : 'bg-white border hover:bg-gray-100'}`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+        {proposals.length === 0 ? (
+          <p className="text-sm text-gray-500">No {proposalFilter} proposals.</p>
+        ) : (
+          <div className="space-y-3">
+            {proposals.map((p) => (
+              <div key={p.id} className="border rounded p-3">
+                <p className="text-xs text-gray-500 mb-2">from {p.proposer_email || '—'}{p.note ? ` · “${p.note}”` : ''}</p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Current</p>
+                    {p.current ? (
+                      <>
+                        <p><strong>{p.current.front}</strong> → {p.current.back}</p>
+                        {p.current.labels?.length > 0 && <p className="text-xs text-gray-500">{p.current.labels.join(', ')}</p>}
+                      </>
+                    ) : <p className="text-gray-400">card removed</p>}
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Proposed</p>
+                    <p><strong>{p.proposed.front}</strong> → {p.proposed.back}</p>
+                    {p.proposed.labels?.length > 0 && <p className="text-xs text-gray-500">{p.proposed.labels.join(', ')}</p>}
+                  </div>
+                </div>
+                {p.status === 'pending' && (
+                  <div className="flex gap-3 mt-2 text-sm justify-end">
+                    <button onClick={() => reviewProposal(p.id, 'reject')} className="text-red-600 hover:underline">Reject</button>
+                    <button onClick={() => reviewProposal(p.id, 'accept')} className="text-green-700 hover:underline font-medium">Accept</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <h2 className="text-xl font-semibold mb-2">Audit user content</h2>

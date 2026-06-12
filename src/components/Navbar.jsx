@@ -33,6 +33,7 @@ export default function Navbar() {
           <NavLink to="/cards">Cards</NavLink>
           <NavLink to="/decks">Decks</NavLink>
           {user && <NavLink to="/dashboard">Dashboard</NavLink>}
+          {user && <NavLink to="/proposals">My Proposals</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
           {!user && <NavLink to="/login">Login</NavLink>}
           {user && (
@@ -68,6 +69,7 @@ export default function Navbar() {
           <NavLink to="/cards">Cards</NavLink>
           <NavLink to="/decks">Decks</NavLink>
           {user && <NavLink to="/dashboard">Dashboard</NavLink>}
+          {user && <NavLink to="/proposals">My Proposals</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
           {!user && <NavLink to="/login">Login</NavLink>}
           {user && (

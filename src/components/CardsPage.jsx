@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import TagInput from './TagInput';
 import CardAdder from './CardAdder';
 import CopyCardModal from './CopyCardModal';
+import SuggestEditModal from './SuggestEditModal';
 import DeckMultiSelect from './study/DeckMultiSelect';
 import MultiSelect from './MultiSelect';
 
@@ -24,6 +25,7 @@ export default function CardsPage() {
   const canCreate = user?.roles?.some((r) => r === 'admin' || r === 'trusted');
   const [showCreate, setShowCreate] = useState(false);
   const [copyTarget, setCopyTarget] = useState(null);
+  const [suggestTarget, setSuggestTarget] = useState(null);
 
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -216,7 +218,7 @@ export default function CardsPage() {
                   </div>
                   <p className="text-xs text-blue-500 mt-2">Click to flip</p>
                 </div>
-                {(canModify(card) || (isAdmin && card.owner_id)) && (
+                {user && (
                   <div className="mt-3 pt-2 border-t flex gap-3 text-sm">
                     {canModify(card) && (
                       <button onClick={() => startEdit(card)} className="text-blue-600 hover:underline">
@@ -226,6 +228,11 @@ export default function CardsPage() {
                     {canModify(card) && (
                       <button onClick={() => deleteCard(card.card_id)} className="text-red-600 hover:underline">
                         Delete
+                      </button>
+                    )}
+                    {!canModify(card) && (
+                      <button onClick={() => setSuggestTarget(card)} className="text-blue-600 hover:underline">
+                        Suggest edit
                       </button>
                     )}
                     {isAdmin && card.owner_id && (
@@ -248,6 +255,14 @@ export default function CardsPage() {
           labelSuggestions={labelSuggestions}
           onClose={() => setCopyTarget(null)}
           onCopied={() => { load(); loadDecks(); }}
+        />
+      )}
+
+      {suggestTarget && (
+        <SuggestEditModal
+          card={suggestTarget}
+          labelSuggestions={labelSuggestions}
+          onClose={() => setSuggestTarget(null)}
         />
       )}
     </div>
