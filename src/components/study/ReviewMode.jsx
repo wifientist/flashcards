@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../api/client';
+import { useToast } from '../../context/ToastContext';
 import FlipCard from './FlipCard';
 
 // FSRS grades (Again..Easy) with a short legend so it's clear which to pick.
@@ -11,6 +12,7 @@ const GRADES = [
 ];
 
 export default function ReviewMode({ deckId }) {
+  const { notify } = useToast();
   const [queue, setQueue] = useState([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -30,11 +32,11 @@ export default function ReviewMode({ deckId }) {
       setReviewed(0);
     } catch (err) {
       console.error(err);
-      alert('Error loading study queue');
+      notify('Error loading study queue', 'error');
     } finally {
       setLoading(false);
     }
-  }, [deckId]);
+  }, [deckId, notify]);
 
   useEffect(() => {
     loadQueue();
@@ -69,7 +71,7 @@ export default function ReviewMode({ deckId }) {
       setIndex((i) => i + 1);
     } catch (err) {
       console.error(err);
-      alert('Error saving review');
+      notify('Error saving review', 'error');
     } finally {
       setSubmitting(false);
     }

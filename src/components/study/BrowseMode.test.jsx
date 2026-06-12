@@ -2,12 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import BrowseMode from './BrowseMode';
 import { AuthProvider } from '../../context/AuthContext';
+import { ToastProvider } from '../../context/ToastContext';
 
 const renderBrowse = (props) =>
   render(
-    <AuthProvider>
-      <BrowseMode {...props} />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <BrowseMode {...props} />
+      </AuthProvider>
+    </ToastProvider>
   );
 
 beforeEach(() => {

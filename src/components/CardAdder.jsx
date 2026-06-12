@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import TagInput from './TagInput';
 
 export default function CardAdder() {
   const { user } = useAuth();
+  const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');
 
   const [front, setFront] = useState('');
@@ -34,12 +36,12 @@ export default function CardAdder() {
         deck_id: asPublic ? (deckId || null) : null,
         private: isAdmin ? makePrivate : true,
       });
-      alert('Card created!');
+      notify('Card created!', 'success');
       setFront('');
       setBack('');
       setLabels([]);
     } catch (err) {
-      alert('Error: ' + err.message);
+      notify('Error: ' + err.message, 'error');
     }
   };
 

@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export default function DecksPage() {
   const { user } = useAuth();
+  const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');
 
   const [decks, setDecks] = useState([]);
@@ -106,7 +108,7 @@ export default function DecksPage() {
     try {
       const content = await file.text();
       const res = await api.post('/api/import/cards', { format, content, deck_id: deckId || null });
-      alert(`Imported ${res.imported} card(s)${res.skipped ? `, skipped ${res.skipped}` : ''}.`);
+      notify(`Imported ${res.imported} card(s)${res.skipped ? `, skipped ${res.skipped}` : ''}.`, 'success');
       await load();
     } catch (err) {
       setError(err.message);

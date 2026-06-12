@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import TagInput from './TagInput';
 
 export default function CardViewer() {
   const { user } = useAuth();
+  const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');
 
   const [cards, setCards] = useState([]);
@@ -57,7 +59,7 @@ export default function CardViewer() {
     setError('');
     try {
       await api.post(`/api/cards/${cardId}/copy`);
-      alert('Copied to the public pool (deck-less). You can file it into a deck via Edit.');
+      notify('Copied to the public pool. File it into a deck via Edit.', 'success');
       await load();
     } catch (err) {
       setError(err.message);
