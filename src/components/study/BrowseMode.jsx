@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { filterCards } from '../../utils/cardFilter';
 import FlipCard from './FlipCard';
 
 // Rapid-fire browsing: swipe left/right to move between cards, tap to flip.
@@ -10,11 +11,12 @@ import FlipCard from './FlipCard';
 //   featured -> public featured-deck cards (landing)
 //   marked   -> the user's starred cards
 //   else     -> all cards (optionally one deck)
-export default function BrowseMode({ deckIds = [], featured = false, marked = false }) {
+// labels/statuses narrow the loaded set client-side (shared filter scope).
+export default function BrowseMode({ deckIds = [], featured = false, marked = false, labels = [], statuses = [] }) {
   const { user } = useAuth();
   const { notify } = useToast();
   const deckKey = deckIds.join(',');
-  const [cards, setCards] = useState([]);
+  const [rawCards, setRawCards] = useState([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ export default function BrowseMode({ deckIds = [], featured = false, marked = fa
         const qs = params.toString();
         const url = `${base}${qs ? `?${qs}` : ''}`;
         const data = await api.get(url);
-        setCards(data.cards || []);
+        setRawCards(data.cards || []);
         setIndex(0);
         setFlipped(false);
       } catch (err) {
@@ -48,6 +50,17 @@ export default function BrowseMode({ deckIds = [], featured = false, marked = fa
     };
     load();
   }, [deckKey, featured, marked, notify]);
+
+  // Key on the joined values, not the array identity (which changes every render
+  // from the default props and would otherwise fire the reset on each render and
+  // break navigation). \x1f can't appear in a label, so it's a safe join.
+  const labelKey = labels.join('\x1f');
+  const statusKey = statuses.join('\x1f');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const cards = useMemo(() => filterCards(rawCards, { labels, statuses }), [rawCards, labelKey, statusKey]);
+
+  // Reset to the first card when the filter narrows the set.
+  useEffect(() => { setIndex(0); setFlipped(false); }, [labelKey, statusKey]);
 
   const move = useCallback(
     (delta) => {
@@ -65,11 +78,11 @@ export default function BrowseMode({ deckIds = [], featured = false, marked = fa
       await api.put(`/api/cards/${card.card_id}/progress`, { flagged: next });
       if (marked && !next) {
         // Unstarred in the Marked view → drop it from the list.
-        setCards((cs) => cs.filter((c) => c.card_id !== card.card_id));
+        setRawCards((cs) => cs.filter((c) => c.card_id !== card.card_id));
         setIndex((i) => (i > 0 ? i - 1 : 0));
         setFlipped(false);
       } else {
-        setCards((cs) =>
+        setRawCards((cs) =>
           cs.map((c) =>
             c.card_id === card.card_id
               ? { ...c, user_progress: { ...(c.user_progress || {}), flagged: next } }
@@ -99,13 +112,15 @@ export default function BrowseMode({ deckIds = [], featured = false, marked = fa
     );
   }
 
-  const current = cards[index];
+  // index may briefly exceed the filtered length before the reset effect runs.
+  const safeIndex = Math.min(index, cards.length - 1);
+  const current = cards[safeIndex];
   const flagged = !!current.user_progress?.flagged;
 
   return (
     <div {...handlers} className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-center gap-3 text-sm text-gray-500 pt-2">
-        <span>{index + 1} / {cards.length} · swipe or use arrows</span>
+        <span>{safeIndex + 1} / {cards.length} · swipe or use arrows</span>
         {user && (
           <button
             onClick={toggleFlag}

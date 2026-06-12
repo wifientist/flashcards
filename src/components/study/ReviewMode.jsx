@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
+import { filterCards } from '../../utils/cardFilter';
 import FlipCard from './FlipCard';
 
 // FSRS grades (Again..Easy) with a short legend so it's clear which to pick.
@@ -11,10 +12,10 @@ const GRADES = [
   { rating: 'easy', label: 'Easy', hint: 'Instant', desc: 'Effortless — longer interval.', cls: 'bg-blue-600 hover:bg-blue-700' },
 ];
 
-export default function ReviewMode({ deckIds = [] }) {
+export default function ReviewMode({ deckIds = [], labels = [], statuses = [] }) {
   const { notify } = useToast();
   const deckKey = deckIds.join(',');
-  const [queue, setQueue] = useState([]);
+  const [rawQueue, setRawQueue] = useState([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -27,7 +28,7 @@ export default function ReviewMode({ deckIds = [] }) {
     try {
       const qs = deckKey ? `?deck_ids=${encodeURIComponent(deckKey)}` : '';
       const data = await api.get(`/api/study/queue${qs}`);
-      setQueue(data.queue || []);
+      setRawQueue(data.queue || []);
       setIndex(0);
       setFlipped(false);
       setReviewed(0);
@@ -43,6 +44,15 @@ export default function ReviewMode({ deckIds = [] }) {
     loadQueue();
   }, [loadQueue]);
 
+  // Narrow the FSRS queue by the shared label/status scope (e.g. study only ch1,
+  // or only the cards already due). Key on joined values, not array identity
+  // (which changes each render), so position doesn't reset on every render.
+  const labelKey = labels.join('\x1f');
+  const statusKey = statuses.join('\x1f');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const queue = useMemo(() => filterCards(rawQueue, { labels, statuses }), [rawQueue, labelKey, statusKey]);
+  useEffect(() => { setIndex(0); setFlipped(false); }, [labelKey, statusKey]);
+
   const current = queue[index];
 
   const toggleFlag = async () => {
@@ -50,9 +60,9 @@ export default function ReviewMode({ deckIds = [] }) {
     const next = !current.user_progress?.flagged;
     try {
       await api.put(`/api/cards/${current.card_id}/progress`, { flagged: next });
-      setQueue((q) =>
-        q.map((c, i) =>
-          i === index
+      setRawQueue((q) =>
+        q.map((c) =>
+          c.card_id === current.card_id
             ? { ...c, user_progress: { ...(c.user_progress || {}), flagged: next } }
             : c
         )

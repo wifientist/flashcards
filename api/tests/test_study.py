@@ -64,6 +64,18 @@ def test_study_decks_persist(user, make_deck):
     assert user.get("/auth/me/study-decks").json()["deck_ids"] == [d]
 
 
+def test_study_filters_persist(user, make_deck):
+    d = make_deck(name="Y")
+    assert user.get("/auth/me/study-filters").json() == {"deck_ids": [], "labels": [], "statuses": []}
+    user.put("/auth/me/study-filters", json={"deck_ids": [d], "labels": ["ch1"], "statuses": ["new", "due"]})
+    got = user.get("/auth/me/study-filters").json()
+    assert got == {"deck_ids": [d], "labels": ["ch1"], "statuses": ["new", "due"]}
+
+
+def test_study_filters_requires_auth(client):
+    assert client.get("/auth/me/study-filters").status_code == 401
+
+
 def test_flag_and_marked_list(user, make_card):
     cid = make_card()
     assert user.get("/study/marked").json()["cards"] == []
