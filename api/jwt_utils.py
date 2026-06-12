@@ -1,12 +1,7 @@
-from jose import jwt, JWTError
+import jwt
 from datetime import datetime, timedelta
 import bcrypt
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-JWT_DECODE_ALGO = os.getenv("JWT_DECODE_ALGO", "HS256")
+from config import JWT_SECRET_KEY, JWT_DECODE_ALGO
 
 def create_access_token(user_id: str, email: str, roles: list, authenticated: bool = False):
     expire = datetime.utcnow() + timedelta(minutes=15)
@@ -36,11 +31,8 @@ def verify_token(token):
         return None
     try:
         return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_DECODE_ALGO])
-    except jwt.ExpiredSignatureError:
-        return None
     except jwt.InvalidTokenError:
-        return None
-    except Exception:
+        # InvalidTokenError is the base class for expired/invalid/malformed tokens
         return None
 
 def hash_password(password: str) -> str:

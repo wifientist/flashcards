@@ -1,13 +1,16 @@
 from fastapi import FastAPI
 from routes import cards, auth, admin
 from fastapi.middleware.cors import CORSMiddleware
+from config import CORS_ORIGINS
 
 app = FastAPI(root_path='/api')
 
+# Credentialed (cookie) requests forbid the "*" wildcard, so origins must be an
+# explicit allowlist. Configure via the CORS_ORIGINS env var.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Or ["*"] for dev
-    allow_credentials=True,  # True to allow cookies
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

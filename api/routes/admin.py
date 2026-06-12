@@ -1,8 +1,6 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from redis_client import r0
 from roles import require_roles
-import uuid
-from models import RoleUpdateRequest
 
 router = APIRouter(prefix='/admin')
 
@@ -27,16 +25,9 @@ def list_sessions(payload=Depends(require_roles(["admin"]))):
 
     return {"sessions": sessions}
 
-@router.post("/sessions/{session_id}/roles")
-def update_roles(session_id: str, role_request: RoleUpdateRequest, payload=Depends(require_roles(["admin"]))):
-    redis_key = f"session:{session_id}"
-
-    if not r0.exists(redis_key):
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    roles = role_request.roles
-    r0.hset(redis_key, "roles", ",".join(roles))
-    return {"message": f"Roles updated for session {session_id}", "roles": roles}
+# NOTE: editing roles on a *session* was removed — roles are authoritative on
+# the user (and carried in the access-token JWT), not the session. Use the
+# admin-only PUT /auth/users/{user_id}/roles endpoint instead.
 
 #aka force logout
 @router.delete("/sessions/{session_id}")

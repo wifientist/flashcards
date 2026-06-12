@@ -6,7 +6,7 @@ import LogoutButton from './LogoutButton';
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
-  const { user, loading, setUser } = useAuth();
+  const { user } = useAuth();
 
   const isActive = (path) => location.pathname === path ? 'bg-gray-200' : '';
 
@@ -30,12 +30,12 @@ export default function Navbar() {
           <NavLink to="/view">View</NavLink>
           {user && <NavLink to="/create">Create</NavLink>}
           {user && <NavLink to="/study">Study</NavLink>}
-          {user?.roles.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
+          {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
           {!user && <NavLink to="/login">Login</NavLink>}
           {user && (
             <>
               <span className="text-sm text-gray-600">Hi, {user.email}</span>
-              <LogoutButton onLogout={() => setUser(null)} />
+              <LogoutButton />
             </>
           )}
         </div>
@@ -59,15 +59,15 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {menuOpen && (
         <div className="md:hidden bg-white border-t p-4 space-y-2">
-          <NavLink to="/">View</NavLink>
+          <NavLink to="/view">View</NavLink>
           {user && <NavLink to="/create">Create</NavLink>}
           {user && <NavLink to="/study">Study</NavLink>}
-          {user?.roles.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
-          {!user && <NavLink to="/unlock">Login</NavLink>}
+          {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
+          {!user && <NavLink to="/login">Login</NavLink>}
           {user && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">{user.email}</span>
-              <LogoutButton onLogout={() => setUser(null)} />
+              <LogoutButton />
             </div>
           )}
         </div>
