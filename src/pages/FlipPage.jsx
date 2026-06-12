@@ -8,7 +8,7 @@ import DeckMultiSelect from '../components/study/DeckMultiSelect';
 // FlipOnly landing: swipe through cards, tap to flip, no grading.
 //   - logged out: featured-deck cards (the public landing)
 //   - logged in: your cards, scoped to the same persistent deck selection
-export default function HomePage() {
+export default function FlipPage() {
   const { user } = useAuth();
   const { decks, selectedDeckIds, updateDecks } = useStudyDecks(!!user);
 

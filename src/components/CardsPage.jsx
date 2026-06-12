@@ -6,7 +6,7 @@ import TagInput from './TagInput';
 import CardAdder from './CardAdder';
 import DeckMultiSelect from './study/DeckMultiSelect';
 
-export default function CardViewer() {
+export default function CardsPage() {
   const { user } = useAuth();
   const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');

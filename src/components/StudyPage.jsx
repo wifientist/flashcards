@@ -7,7 +7,7 @@ import { useStudyDecks } from '../hooks/useStudyDecks';
 // Study section: the FSRS-prioritized queue, or your starred (Marked) cards.
 // (Casual flipping lives on the top-level FlipOnly page.) Deck scope is shared
 // and persisted server-side per user.
-export default function CardStudy() {
+export default function StudyPage() {
   const [mode, setMode] = useState('study');
   const { decks, selectedDeckIds, updateDecks } = useStudyDecks();
 
