@@ -27,6 +27,17 @@ def test_review_requires_auth(client, make_card):
     assert client.post(f"/cards/{cid}/review", json={"rating": "good"}).status_code == 401
 
 
+def test_summary_includes_starred_and_due(user, make_card):
+    cid = make_card()
+    user.put(f"/cards/{cid}/progress", json={"flagged": True})
+    user.post(f"/cards/{cid}/review", json={"rating": "good"})
+    s = user.get("/my-progress/summary").json()
+    assert s["starred"] == 1
+    assert s["total_reviews"] == 1
+    assert s["total_cards_studied"] == 1
+    assert "due_now" in s and "status_breakdown" in s
+
+
 def test_flag_and_marked_list(user, make_card):
     cid = make_card()
     assert user.get("/study/marked").json()["cards"] == []

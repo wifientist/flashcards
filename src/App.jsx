@@ -12,6 +12,7 @@ import CardStudy from './components/CardStudy';
 import AdminPage from './pages/AdminPage';
 import DecksPage from './pages/DecksPage';
 import HomePage from './pages/HomePage';
+import DashboardPage from './pages/DashboardPage';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
         <Route path="/decks" element={<DecksPage />} />
         <Route path="/create" element={<CardAdder />} />
         <Route path="/study" element={<CardStudy />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/login" element={<UserLogin />} />
         

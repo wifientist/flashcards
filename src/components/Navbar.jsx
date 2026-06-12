@@ -26,14 +26,16 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 w-full bg-white border-b z-50">
       <div className="max-w-screen-lg mx-auto flex justify-between items-center p-4">
-        <div className="text-lg font-bold">Flashcards</div>
+        <Link to="/" className="text-lg font-bold" onClick={() => setMenuOpen(false)}>Flashcards</Link>
 
         {/* Desktop Nav */}
         <div className="hidden md:flex space-x-4 items-center">
+          <NavLink to="/">Home</NavLink>
           <NavLink to="/view">View</NavLink>
           <NavLink to="/decks">Decks</NavLink>
           {canCreate && <NavLink to="/create">Create</NavLink>}
           {user && <NavLink to="/study">Study</NavLink>}
+          {user && <NavLink to="/dashboard">Dashboard</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
           {!user && <NavLink to="/login">Login</NavLink>}
           {user && (
@@ -63,10 +65,12 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {menuOpen && (
         <div className="md:hidden bg-white border-t p-4 space-y-2">
+          <NavLink to="/">Home</NavLink>
           <NavLink to="/view">View</NavLink>
           <NavLink to="/decks">Decks</NavLink>
           {canCreate && <NavLink to="/create">Create</NavLink>}
           {user && <NavLink to="/study">Study</NavLink>}
+          {user && <NavLink to="/dashboard">Dashboard</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
           {!user && <NavLink to="/login">Login</NavLink>}
           {user && (

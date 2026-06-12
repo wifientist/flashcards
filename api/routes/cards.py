@@ -9,6 +9,7 @@ from database import get_db
 from db_models import Card, Progress, Deck
 from models import CardCreate, CardUpdate, ProgressUpdate, ProgressStatus
 from roles import require_roles, get_current_user, require_authenticated
+import scheduler
 
 router = APIRouter()
 
@@ -290,6 +291,9 @@ def get_my_progress_summary(db: Session = Depends(get_db),
     status_counts = {s.value: 0 for s in ProgressStatus}
     total_cards = 0
     total_reviews = 0
+    due_now = 0
+    starred = 0
+    now = scheduler.now_utc()
 
     rows = db.scalars(
         select(Progress).where(Progress.user_id == payload["user_id"])
@@ -299,10 +303,16 @@ def get_my_progress_summary(db: Session = Depends(get_db),
         if p.status in status_counts:
             status_counts[p.status] += 1
         total_reviews += p.review_count or 0
+        if p.flagged:
+            starred += 1
+        if p.due is not None and p.due <= now:
+            due_now += 1
 
     return {
         "total_cards_studied": total_cards,
         "total_reviews": total_reviews,
+        "due_now": due_now,
+        "starred": starred,
         "status_breakdown": status_counts,
     }
 
