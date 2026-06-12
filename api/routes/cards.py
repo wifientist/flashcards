@@ -22,13 +22,14 @@ def _iso(dt):
 def _serialize_progress(p: Optional[Progress]) -> dict:
     if not p:
         return {"notes": "", "status": "new", "last_reviewed": None,
-                "review_count": 0, "due": None}
+                "review_count": 0, "due": None, "flagged": False}
     return {
         "notes": p.notes or "",
         "status": p.status or "new",
         "last_reviewed": _iso(p.last_reviewed),
         "review_count": p.review_count or 0,
         "due": _iso(p.due),
+        "flagged": bool(p.flagged),
     }
 
 
@@ -178,6 +179,8 @@ def update_card_progress(card_id: str, progress_update: ProgressUpdate,
         progress.notes = progress_update.notes
     if progress_update.status is not None:
         progress.status = progress_update.status.value
+    if progress_update.flagged is not None:
+        progress.flagged = progress_update.flagged
 
     # Only an explicit review event updates review stats.
     if progress_update.reviewed:

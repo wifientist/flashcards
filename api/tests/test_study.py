@@ -27,6 +27,20 @@ def test_review_requires_auth(client, make_card):
     assert client.post(f"/cards/{cid}/review", json={"rating": "good"}).status_code == 401
 
 
+def test_flag_and_marked_list(user, make_card):
+    cid = make_card()
+    assert user.get("/study/marked").json()["cards"] == []
+
+    user.put(f"/cards/{cid}/progress", json={"flagged": True})
+    marked = user.get("/study/marked").json()["cards"]
+    assert [c["card_id"] for c in marked] == [cid]
+    assert marked[0]["user_progress"]["flagged"] is True
+    assert marked[0]["user_progress"]["review_count"] == 0  # flagging != review
+
+    user.put(f"/cards/{cid}/progress", json={"flagged": False})
+    assert user.get("/study/marked").json()["cards"] == []
+
+
 def test_queue_scoped_to_deck(user, make_card, make_deck):
     deck = make_deck(name="Spanish")
     make_card(front="in-deck", deck_id=deck)

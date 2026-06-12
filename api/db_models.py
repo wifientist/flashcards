@@ -85,6 +85,8 @@ class Progress(Base):
     status = Column(String, nullable=False, default="new")
     last_reviewed = Column(DateTime, nullable=True)
     review_count = Column(Integer, nullable=False, default=0)
+    # User-set star/flag, independent of FSRS status (never auto-overwritten).
+    flagged = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # FSRS scheduling state. `due` is denormalized out of `fsrs_card` for fast
     # "what's due now" queries; `fsrs_card` is the serialized FSRS Card.

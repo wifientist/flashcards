@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import BrowseMode from './BrowseMode';
+import { AuthProvider } from '../../context/AuthContext';
+
+const renderBrowse = (props) =>
+  render(
+    <AuthProvider>
+      <BrowseMode {...props} />
+    </AuthProvider>
+  );
 
 beforeEach(() => {
   globalThis.fetch = vi.fn().mockResolvedValue({
@@ -18,7 +26,7 @@ beforeEach(() => {
 
 describe('BrowseMode', () => {
   it('navigates forward and wraps around', async () => {
-    render(<BrowseMode deckId="" />);
+    renderBrowse({ deckId: '' });
 
     // First card loaded.
     expect(await screen.findByText('a')).toBeInTheDocument();
