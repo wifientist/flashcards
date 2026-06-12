@@ -69,6 +69,25 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
     return {"queue": queue, "count": len(queue), "due_count": len(due_ids)}
 
 
+@router.get("/study/marked")
+def marked_cards(db: Session = Depends(get_db),
+                 payload=Depends(require_authenticated)):
+    """The caller's starred (flagged) cards."""
+    user_id = payload["user_id"]
+    rows = list(db.scalars(
+        select(Progress).where(Progress.user_id == user_id, Progress.flagged.is_(True))
+    ))
+    progress_by_card = {p.card_id: p for p in rows}
+    ids = list(progress_by_card.keys())
+    cards = list(db.scalars(select(Card).where(Card.id.in_(ids)))) if ids else []
+    return {
+        "cards": [
+            _serialize_card(c, progress_by_card.get(c.id), include_progress=True)
+            for c in cards
+        ]
+    }
+
+
 @router.post("/cards/{card_id}/review")
 def review_card(card_id: str, review: ReviewRequest, db: Session = Depends(get_db),
                 payload=Depends(require_authenticated)):

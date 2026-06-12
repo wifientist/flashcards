@@ -42,6 +42,23 @@ export default function ReviewMode({ deckId }) {
 
   const current = queue[index];
 
+  const toggleFlag = async () => {
+    if (!current) return;
+    const next = !current.user_progress?.flagged;
+    try {
+      await api.put(`/api/cards/${current.card_id}/progress`, { flagged: next });
+      setQueue((q) =>
+        q.map((c, i) =>
+          i === index
+            ? { ...c, user_progress: { ...(c.user_progress || {}), flagged: next } }
+            : c
+        )
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const grade = async (rating) => {
     if (!current || submitting) return;
     setSubmitting(true);
@@ -80,8 +97,15 @@ export default function ReviewMode({ deckId }) {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="text-center text-sm text-gray-500 pt-2">
-        {remaining} left · {reviewed} done
+      <div className="flex items-center justify-center gap-3 text-sm text-gray-500 pt-2">
+        <span>{remaining} left · {reviewed} done</span>
+        <button
+          onClick={toggleFlag}
+          title={current.user_progress?.flagged ? 'Unstar' : 'Star this card'}
+          className={`text-lg leading-none ${current.user_progress?.flagged ? 'text-amber-500' : 'text-gray-400 hover:text-amber-500'}`}
+        >
+          {current.user_progress?.flagged ? '★' : '☆'}
+        </button>
       </div>
 
       <FlipCard

@@ -47,6 +47,7 @@ class ReviewRequest(BaseModel):
 class ProgressUpdate(BaseModel):
     notes: Optional[str] = None
     status: Optional[ProgressStatus] = None
+    flagged: Optional[bool] = None  # star/unstar the card
     # True only for an actual review event (study flow); editing notes/status
     # alone must NOT inflate review_count/last_reviewed.
     reviewed: bool = False
