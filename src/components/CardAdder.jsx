@@ -23,17 +23,10 @@ export default function CardAdder({ onCreated } = {}) {
     api.get('/api/labels').then((d) => setLabelSuggestions((d.labels || []).map((l) => l.label))).catch(() => {});
   }, []);
 
-  // Trusted users always make private cards; admins choose.
-  const isPrivate = !isAdmin || makePrivate;
-  // Private cards go in your own decks; public cards go in public decks.
-  const deckOptions = decks.filter((d) =>
-    isPrivate ? d.owner_id === user?.user_id : !d.owner_id
-  );
-
-  const setCardType = (priv) => {
-    setMakePrivate(priv);
-    setDeckId(''); // deck list changes with type
-  };
+  // Public cards (admin) can be filed into a public deck; private cards always
+  // land in the user's auto "My Cards" deck, so no deck choice there.
+  const asPublic = isAdmin && !makePrivate;
+  const publicDecks = decks.filter((d) => !d.owner_id);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,7 +35,7 @@ export default function CardAdder({ onCreated } = {}) {
         front,
         back,
         labels,
-        deck_id: deckId || null,
+        deck_id: asPublic ? (deckId || null) : null,
         private: isAdmin ? makePrivate : true,
       });
       notify('Card created!', 'success');
@@ -74,11 +67,11 @@ export default function CardAdder({ onCreated } = {}) {
           <label className="block text-gray-700 mb-1">Card type:</label>
           <div className="flex gap-4 text-sm">
             <label className="flex items-center gap-1 cursor-pointer">
-              <input type="radio" checked={!makePrivate} onChange={() => setCardType(false)} />
+              <input type="radio" checked={!makePrivate} onChange={() => setMakePrivate(false)} />
               <span>Public (app card)</span>
             </label>
             <label className="flex items-center gap-1 cursor-pointer">
-              <input type="radio" checked={makePrivate} onChange={() => setCardType(true)} />
+              <input type="radio" checked={makePrivate} onChange={() => setMakePrivate(true)} />
               <span>🔒 Private (my card)</span>
             </label>
           </div>
@@ -112,24 +105,21 @@ export default function CardAdder({ onCreated } = {}) {
         <TagInput tags={labels} onChange={setLabels} suggestions={labelSuggestions} />
       </div>
 
-      <div>
-        <label className="block text-gray-700 mb-1">
-          Deck{isPrivate && <span className="text-gray-400"> (your decks)</span>}:
-        </label>
-        <select
-          value={deckId}
-          onChange={(e) => setDeckId(e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">— No deck —</option>
-          {deckOptions.map((d) => (
-            <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
-          ))}
-        </select>
-        {isPrivate && deckOptions.length === 0 && (
-          <p className="text-xs text-gray-400 mt-1">Create a private deck on the Decks page to organize your cards.</p>
-        )}
-      </div>
+      {asPublic && (
+        <div>
+          <label className="block text-gray-700 mb-1">Deck:</label>
+          <select
+            value={deckId}
+            onChange={(e) => setDeckId(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">— No deck —</option>
+            {publicDecks.map((d) => (
+              <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <button
         type="submit"

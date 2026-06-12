@@ -20,7 +20,8 @@ def test_import_json_counts(admin, make_deck):
 
 
 def test_import_into_private_deck_rejected(admin, trusted):
-    priv = trusted.post("/decks", json={"name": "p"}).json()["deck_id"]
+    trusted.post("/cards", json={"front": "x", "back": "y"})  # creates trusted's My Cards deck
+    priv = next(d["deck_id"] for d in trusted.get("/decks").json()["decks"] if d["owner_id"])
     r = admin.post("/import/cards", json={"format": "json", "content": "{}", "deck_id": priv})
     assert r.status_code == 400
 

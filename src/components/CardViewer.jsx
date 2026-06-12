@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TagInput from './TagInput';
 import CardAdder from './CardAdder';
+import DeckMultiSelect from './study/DeckMultiSelect';
 
 export default function CardViewer() {
   const { user } = useAuth();
@@ -15,10 +16,9 @@ export default function CardViewer() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
-  const [deckId, setDeckId] = useState('');
+  const [deckIds, setDeckIds] = useState([]);
   const [decks, setDecks] = useState([]);
   const [labelSuggestions, setLabelSuggestions] = useState([]);
-  const [scope, setScope] = useState('all'); // 'all' | 'mine'
   const [flipped, setFlipped] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ front: '', back: '', labels: [], deck_id: '' });
@@ -27,22 +27,26 @@ export default function CardViewer() {
   const canModify = (card) =>
     isAdmin || (card.owner_id && card.owner_id === user?.user_id);
 
-  useEffect(() => {
+  const loadDecks = useCallback(() => {
     api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
-    api.get('/api/labels').then((d) => setLabelSuggestions((d.labels || []).map((l) => l.label))).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    loadDecks();
+    api.get('/api/labels').then((d) => setLabelSuggestions((d.labels || []).map((l) => l.label))).catch(() => {});
+  }, [loadDecks]);
 
   const deckName = useCallback(
     (id) => decks.find((d) => d.deck_id === id)?.name || null,
     [decks]
   );
 
+  const deckKey = deckIds.join(',');
   const load = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (filter) params.set('label', filter);
-      if (scope === 'mine') params.set('mine', '1');
-      else if (deckId) params.set('deck_id', deckId);
+      if (deckKey) params.set('deck_ids', deckKey);
       const qs = params.toString();
       const data = await api.get(`/api/cards${qs ? `?${qs}` : ''}`);
       setCards(data.cards);
@@ -52,7 +56,7 @@ export default function CardViewer() {
     } finally {
       setLoading(false);
     }
-  }, [filter, deckId, scope]);
+  }, [filter, deckKey]);
 
   useEffect(() => {
     load();
@@ -125,11 +129,11 @@ export default function CardViewer() {
           >
             {showCreate ? '× Close' : '+ New card'}
           </button>
-          {showCreate && <CardAdder onCreated={load} />}
+          {showCreate && <CardAdder onCreated={() => { load(); loadDecks(); }} />}
         </div>
       )}
 
-      <div className="mb-4 flex justify-center gap-2 flex-wrap">
+      <div className="mb-4 flex justify-center items-center gap-2 flex-wrap">
         <input
           type="text"
           placeholder="Filter by label..."
@@ -137,28 +141,7 @@ export default function CardViewer() {
           onChange={(e) => setFilter(e.target.value)}
           className="border border-gray-300 p-2 rounded"
         />
-        {scope === 'all' && (
-          <select
-            value={deckId}
-            onChange={(e) => setDeckId(e.target.value)}
-            className="border border-gray-300 p-2 rounded"
-          >
-            <option value="">All decks</option>
-            {decks.map((d) => (
-              <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
-            ))}
-          </select>
-        )}
-        {user && (
-          <select
-            value={scope}
-            onChange={(e) => setScope(e.target.value)}
-            className="border border-gray-300 p-2 rounded"
-          >
-            <option value="all">All cards</option>
-            <option value="mine">My cards</option>
-          </select>
-        )}
+        <DeckMultiSelect decks={decks} selected={deckIds} onChange={setDeckIds} />
       </div>
 
       {cards.length === 0 ? (
@@ -171,8 +154,8 @@ export default function CardViewer() {
                 key={card.card_id}
                 form={editForm}
                 setForm={setEditForm}
-                decks={decks.filter((d) => (card.owner_id ? d.owner_id === user?.user_id : !d.owner_id))}
-                allowDeck={canModify(card)}
+                decks={decks.filter((d) => !d.owner_id)}
+                allowDeck={isAdmin && !card.owner_id}
                 labelSuggestions={labelSuggestions}
                 onSave={() => saveEdit(card.card_id)}
                 onCancel={() => setEditingId(null)}

@@ -42,19 +42,26 @@ def can_view_card(card: Card, payload) -> bool:
     return bool(payload) and card.owner_id == payload.get("user_id")
 
 
-def _validate_deck_for_card(db: Session, deck_id, owner_id):
-    """A public card (owner None) may only go in a public deck; a private card
-    only in a deck its owner owns. Returns the validated deck_id (or None)."""
+def _validate_public_deck(db: Session, deck_id):
+    """A public (admin) card may only be filed into a public deck."""
     if not deck_id:
         return None
     deck = db.get(Deck, deck_id)
     if not deck:
         raise HTTPException(status_code=400, detail="Deck not found")
-    if owner_id is None and deck.owner_id is not None:
+    if deck.owner_id is not None:
         raise HTTPException(status_code=400, detail="A public card can't go in a private deck")
-    if owner_id is not None and deck.owner_id != owner_id:
-        raise HTTPException(status_code=400, detail="You can only file a card into your own deck")
     return deck_id
+
+
+def _default_deck_id(db: Session, user_id: str) -> str:
+    """The user's single auto 'My Cards' private deck, created on first use."""
+    deck = db.scalar(select(Deck).where(Deck.owner_id == user_id))
+    if not deck:
+        deck = Deck(name="My Cards", owner_id=user_id, created_by=user_id)
+        db.add(deck)
+        db.flush()  # assign id within the current transaction
+    return deck.id
 
 
 # --- serialization helpers -------------------------------------------------
@@ -104,8 +111,13 @@ def create_card(card: CardCreate, db: Session = Depends(get_db),
     is_admin = _is_admin(payload)
     # Trusted non-admins can only make private cards; admins choose.
     make_private = (not is_admin) or card.private
-    owner_id = payload["user_id"] if make_private else None
-    deck_id = _validate_deck_for_card(db, card.deck_id, owner_id)
+    user_id = payload["user_id"]
+    if make_private:
+        owner_id = user_id
+        deck_id = _default_deck_id(db, user_id)   # auto "My Cards" deck
+    else:
+        owner_id = None
+        deck_id = _validate_public_deck(db, card.deck_id)
 
     new_card = Card(
         front=card.front,
@@ -202,9 +214,9 @@ def update_card(card_id: str, card_update: CardUpdate, db: Session = Depends(get
         card.back = card_update.back
     if card_update.labels is not None:
         card.labels = card_update.labels
-    # Re-file into a deck (validated against the card's ownership).
-    if "deck_id" in card_update.model_fields_set:
-        card.deck_id = _validate_deck_for_card(db, card_update.deck_id, card.owner_id)
+    # Only public (admin) cards can be re-filed; private cards stay in "My Cards".
+    if card.owner_id is None and "deck_id" in card_update.model_fields_set:
+        card.deck_id = _validate_public_deck(db, card_update.deck_id)
 
     db.commit()
     return {"message": "Card updated"}
