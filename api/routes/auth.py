@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Request, HTTPException, status, Depends, Response
-from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 from jwt_utils import create_access_token, create_refresh_token, verify_token
-from roles import require_authenticated, get_current_user, require_admin
-from models import (
-    AuthRequest, SessionInfo, UserCreate, UserLogin, 
-    UserInfo, RoleUpdateRequest
-)
+from roles import get_current_user, require_admin
+from models import SessionInfo, UserCreate, UserLogin, RoleUpdateRequest
+from database import get_db
+from db_models import User
 from user_manager import user_manager
 from session_manager import session_manager
 from rate_limit import rate_limit
@@ -15,10 +14,20 @@ from config import (
     ACCESS_TOKEN_TTL_SECONDS,
     REFRESH_TOKEN_TTL_SECONDS,
 )
-from datetime import datetime
-import uuid
 
 router = APIRouter(prefix='/auth')
+
+
+def _serialize_user(user: User) -> dict:
+    """Public-safe user representation (never includes the password hash)."""
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "roles": list(user.roles or []),
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "last_login": user.last_login.isoformat() if user.last_login else None,
+        "is_active": user.is_active,
+    }
 
 
 def _set_auth_cookie(response: Response, key: str, value: str, max_age: int):
@@ -53,13 +62,13 @@ def health_check():
     "/register",
     dependencies=[Depends(rate_limit("register", limit=5, window_seconds=3600))],
 )
-async def register(user_data: UserCreate):
+async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""
     try:
-        user = user_manager.create_user(user_data)
+        user = user_manager.create_user(db, user_data)
         return {
             "message": "User created successfully",
-            "user_id": user.user_id,
+            "user_id": user.id,
             "email": user.email
         }
     except ValueError as e:
@@ -72,47 +81,49 @@ async def register(user_data: UserCreate):
     "/login",
     dependencies=[Depends(rate_limit("login", limit=10, window_seconds=300))],
 )
-async def login(response: Response, login_data: UserLogin):
+async def login(response: Response, login_data: UserLogin, db: Session = Depends(get_db)):
     """Authenticate user and create session"""
-    user = user_manager.authenticate_user(login_data.email, login_data.password)
-    
+    user = user_manager.authenticate_user(db, login_data.email, login_data.password)
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
-    
+
+    roles = list(user.roles or [])
+
     # Create session
     session_id = session_manager.create_session(
-        user_id=user.user_id,
+        user_id=user.id,
         email=user.email,
-        roles=user.roles,
+        roles=roles,
         authenticated=True
     )
-    
+
     # Create tokens
     access_token = create_access_token(
-        user_id=user.user_id,
+        user_id=user.id,
         email=user.email,
-        roles=user.roles,
+        roles=roles,
         authenticated=True
     )
     refresh_token = create_refresh_token(
-        user_id=user.user_id,
+        user_id=user.id,
         email=user.email
     )
-    
+
     # Set cookies
     _set_auth_cookie(response, "access_token", access_token, ACCESS_TOKEN_TTL_SECONDS)
     _set_auth_cookie(response, "refresh_token", refresh_token, REFRESH_TOKEN_TTL_SECONDS)
     _set_auth_cookie(response, "session_id", session_id, REFRESH_TOKEN_TTL_SECONDS)
-    
+
     return {
         "message": "Login successful",
         "user": {
-            "user_id": user.user_id,
+            "user_id": user.id,
             "email": user.email,
-            "roles": user.roles
+            "roles": roles
         }
     }
 
@@ -136,11 +147,11 @@ def whoami(request: Request, payload=Depends(get_current_user)):
     )
 
 @router.post("/refresh")
-async def refresh_token(request: Request, response: Response):
+async def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
     """Refresh access token using refresh token"""
     refresh_token = request.cookies.get("refresh_token")
     payload = verify_token(refresh_token)
-    
+
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -148,8 +159,8 @@ async def refresh_token(request: Request, response: Response):
         )
 
     user_id = payload.get("user_id")
-    user = user_manager.get_user_by_id(user_id)
-    
+    user = user_manager.get_user_by_id(db, user_id)
+
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -158,9 +169,9 @@ async def refresh_token(request: Request, response: Response):
 
     # Create new access token
     new_access_token = create_access_token(
-        user_id=user.user_id,
+        user_id=user.id,
         email=user.email,
-        roles=user.roles,
+        roles=list(user.roles or []),
         authenticated=True
     )
     
@@ -182,43 +193,39 @@ def logout(request: Request, response: Response):
     return {"message": "Logged out successfully"}
 
 @router.get("/users", dependencies=[Depends(require_admin)])
-def list_users():
+def list_users(db: Session = Depends(get_db)):
     """List all users (admin only)"""
-    
-    users = user_manager.list_users()
-    if users:
-        return {"users": users}
-    else:
-        return {"message": "No users found"}
+    users = user_manager.list_users(db)
+    return {"users": [_serialize_user(u) for u in users]}
 
 @router.put("/users/{user_id}/roles", dependencies=[Depends(require_admin)])
-def update_user_roles(user_id: str, role_update: RoleUpdateRequest):
+def update_user_roles(user_id: str, role_update: RoleUpdateRequest, db: Session = Depends(get_db)):
     """Update user roles (admin only)"""
-    user = user_manager.get_user_by_id(user_id)
+    user = user_manager.get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
-    user_manager.update_user_roles(user_id, role_update.roles)
-    
+
+    user_manager.update_user_roles(db, user_id, role_update.roles)
+
     # Invalidate user's sessions to force re-authentication with new roles
     session_manager.invalidate_user_sessions(user_id)
-    
+
     return {"message": "User roles updated successfully"}
 
 @router.delete("/users/{user_id}", dependencies=[Depends(require_admin)])
-def deactivate_user(user_id: str):
+def deactivate_user(user_id: str, db: Session = Depends(get_db)):
     """Deactivate a user (admin only)"""
-    user = user_manager.get_user_by_id(user_id)
+    user = user_manager.get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
-    user_manager.deactivate_user(user_id)
+
+    user_manager.deactivate_user(db, user_id)
     session_manager.invalidate_user_sessions(user_id)
-    
+
     return {"message": "User deactivated successfully"}

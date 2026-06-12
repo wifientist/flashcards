@@ -30,6 +30,14 @@ def _require(name: str) -> str:
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 IS_PRODUCTION = ENVIRONMENT not in ("development", "dev", "local", "test")
 
+# --- Database --------------------------------------------------------------
+# Primary datastore for users / cards / progress (Postgres). Redis is retained
+# only for sessions and rate-limit counters.
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg2://flashcards:flashcards@localhost:5432/flashcards",
+)
+
 # --- Auth / JWT ------------------------------------------------------------
 JWT_SECRET_KEY = _require("JWT_SECRET_KEY")
 JWT_DECODE_ALGO = os.getenv("JWT_DECODE_ALGO", "HS256")
