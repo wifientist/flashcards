@@ -64,6 +64,7 @@ export default function BrowseMode({ deckId, featured = false }) {
       </div>
 
       <FlipCard
+        key={current.card_id}
         front={current.front}
         back={current.back}
         flipped={flipped}
