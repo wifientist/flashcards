@@ -8,12 +8,12 @@ def test_admin_card_is_public(admin, make_card):
 
 
 def test_trusted_creates_private_card(trusted):
-    r = trusted.post("/cards", json={"front": "p", "back": "q", "deck_id": None})
+    r = trusted.post("/cards", json={"front": "p", "back": "q"})
     assert r.status_code == 200
     mine = trusted.get("/cards?mine=1").json()["cards"]
     assert [c["front"] for c in mine] == ["p"]
     assert mine[0]["owner_id"] is not None
-    assert mine[0]["deck_id"] is None  # private cards are deck-less
+    assert mine[0]["deck_id"] is not None  # auto-filed into "My Cards"
 
 
 def test_private_card_hidden_from_others_visible_to_admin(trusted, user, admin):

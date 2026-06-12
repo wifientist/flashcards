@@ -7,9 +7,7 @@ export default function DecksPage() {
   const { user } = useAuth();
   const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');
-  const canCreate = user?.roles?.some((r) => r === 'admin' || r === 'trusted');
   const ownsDeck = (deck) => deck.owner_id && deck.owner_id === user?.user_id;
-  const canModifyDeck = (deck) => isAdmin || ownsDeck(deck);
 
   const [decks, setDecks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -134,9 +132,9 @@ export default function DecksPage() {
       </div>
       {error && <div className="bg-red-100 text-red-800 text-sm p-2 rounded mb-4">{error}</div>}
 
-      {canCreate && (
+      {isAdmin && (
         <form onSubmit={createDeck} className="bg-white border rounded p-4 mb-6 space-y-2">
-          <h2 className="font-semibold">New deck{!isAdmin && <span className="text-gray-400 text-sm"> (private to you)</span>}</h2>
+          <h2 className="font-semibold">New deck</h2>
           <input
             type="text"
             placeholder="Deck name"
@@ -232,7 +230,7 @@ export default function DecksPage() {
                     />
                   </label>
                 )}
-                {canModifyDeck(deck) && (
+                {isAdmin && (
                   <div className="space-x-2">
                     <button onClick={() => startEditDeck(deck)} className="text-blue-600 hover:underline">Edit</button>
                     <button onClick={() => deleteDeck(deck.deck_id)} className="text-red-600 hover:underline">Delete</button>
