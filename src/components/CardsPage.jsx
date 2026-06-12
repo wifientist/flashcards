@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
 import TagInput from './TagInput';
 import CardAdder from './CardAdder';
+import CopyCardModal from './CopyCardModal';
 import DeckMultiSelect from './study/DeckMultiSelect';
 import MultiSelect from './MultiSelect';
 
@@ -20,10 +20,10 @@ const STATUS_OPTIONS = [
 
 export default function CardsPage() {
   const { user } = useAuth();
-  const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');
   const canCreate = user?.roles?.some((r) => r === 'admin' || r === 'trusted');
   const [showCreate, setShowCreate] = useState(false);
+  const [copyTarget, setCopyTarget] = useState(null);
 
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,17 +74,6 @@ export default function CardsPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  const copyToPublic = async (cardId) => {
-    setError('');
-    try {
-      await api.post(`/api/cards/${cardId}/copy`);
-      notify('Copied to the public pool. File it into a deck via Edit.', 'success');
-      await load();
-    } catch (err) {
-      setError(err.message);
-    }
-  };
 
   const toggleFlip = (cardId) => {
     setFlipped((prev) => ({ ...prev, [cardId]: !prev[cardId] }));
@@ -200,7 +189,7 @@ export default function CardsPage() {
                     {flipped[card.card_id] ? 'Back:' : 'Front:'}
                     {card.owner_id && (
                       <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded align-middle">
-                        🔒 Private
+                        🔒 {card.owner_email || 'Private'}
                       </span>
                     )}
                   </p>
@@ -240,8 +229,8 @@ export default function CardsPage() {
                       </button>
                     )}
                     {isAdmin && card.owner_id && (
-                      <button onClick={() => copyToPublic(card.card_id)} className="text-green-700 hover:underline">
-                        Copy to public
+                      <button onClick={() => setCopyTarget(card)} className="text-green-700 hover:underline">
+                        Copy to public…
                       </button>
                     )}
                   </div>
@@ -250,6 +239,16 @@ export default function CardsPage() {
             )
           )}
         </div>
+      )}
+
+      {copyTarget && (
+        <CopyCardModal
+          card={copyTarget}
+          publicDecks={decks.filter((d) => !d.owner_id)}
+          labelSuggestions={labelSuggestions}
+          onClose={() => setCopyTarget(null)}
+          onCopied={() => { load(); loadDecks(); }}
+        />
       )}
     </div>
   );
