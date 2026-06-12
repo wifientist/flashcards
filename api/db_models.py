@@ -46,6 +46,10 @@ class Deck(Base):
     description = Column(Text, nullable=True)
     # When true, this deck's cards appear in the public (unauthenticated) landing.
     featured = Column(Boolean, nullable=False, default=False, server_default="false")
+    # NULL = public (admin) deck. Set = private deck owned by that user.
+    owner_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

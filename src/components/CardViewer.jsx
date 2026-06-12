@@ -156,8 +156,8 @@ export default function CardViewer() {
                 key={card.card_id}
                 form={editForm}
                 setForm={setEditForm}
-                decks={decks}
-                allowDeck={isAdmin}
+                decks={decks.filter((d) => (card.owner_id ? d.owner_id === user?.user_id : !d.owner_id))}
+                allowDeck={canModify(card)}
                 labelSuggestions={labelSuggestions}
                 onSave={() => saveEdit(card.card_id)}
                 onCancel={() => setEditingId(null)}
