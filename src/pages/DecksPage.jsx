@@ -51,11 +51,52 @@ export default function DecksPage() {
     }
   };
 
+  // Export downloads a file, so use a raw blob fetch (not the JSON client).
+  const exportCards = async (deckId, format) => {
+    const params = new URLSearchParams({ format });
+    if (deckId) params.set('deck_id', deckId);
+    try {
+      const res = await fetch(`/api/export/cards?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cards.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const importToDeck = async (deckId, file) => {
+    if (!file) return;
+    const format = file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'json';
+    try {
+      const content = await file.text();
+      const res = await api.post('/api/import/cards', { format, content, deck_id: deckId || null });
+      alert(`Imported ${res.imported} card(s)${res.skipped ? `, skipped ${res.skipped}` : ''}.`);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   if (loading) return <p className="text-center mt-8">Loading decks…</p>;
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Decks</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Decks</h1>
+        {user && (
+          <div className="text-sm space-x-2">
+            <span className="text-gray-500">Export all:</span>
+            <button onClick={() => exportCards('', 'csv')} className="text-blue-600 hover:underline">CSV</button>
+            <button onClick={() => exportCards('', 'json')} className="text-blue-600 hover:underline">JSON</button>
+          </div>
+        )}
+      </div>
       {error && <div className="bg-red-100 text-red-800 text-sm p-2 rounded mb-4">{error}</div>}
 
       {isAdmin && (
@@ -93,14 +134,33 @@ export default function DecksPage() {
                 {deck.description && <p className="text-sm text-gray-600">{deck.description}</p>}
                 <p className="text-xs text-gray-400 mt-1">{deck.card_count} cards</p>
               </div>
-              {isAdmin && (
-                <button
-                  onClick={() => deleteDeck(deck.deck_id)}
-                  className="text-sm text-red-600 hover:underline"
-                >
-                  Delete
-                </button>
-              )}
+              <div className="flex flex-col items-end gap-1 text-sm">
+                {user && (
+                  <div className="space-x-2">
+                    <button onClick={() => exportCards(deck.deck_id, 'csv')} className="text-blue-600 hover:underline">Export CSV</button>
+                    <button onClick={() => exportCards(deck.deck_id, 'json')} className="text-blue-600 hover:underline">JSON</button>
+                  </div>
+                )}
+                {isAdmin && (
+                  <label className="text-green-700 hover:underline cursor-pointer">
+                    Import…
+                    <input
+                      type="file"
+                      accept=".csv,.json"
+                      className="hidden"
+                      onChange={(e) => {
+                        importToDeck(deck.deck_id, e.target.files[0]);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+                {isAdmin && (
+                  <button onClick={() => deleteDeck(deck.deck_id)} className="text-red-600 hover:underline">
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

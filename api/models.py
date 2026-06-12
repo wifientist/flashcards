@@ -26,6 +26,11 @@ class DeckUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
 
+class ImportRequest(BaseModel):
+    format: str           # "csv" | "json"
+    content: str          # raw file text
+    deck_id: Optional[str] = None  # target deck; null imports unfiled cards
+
 class ProgressStatus(str, Enum):
     NEW = "new"
     LEARNING = "learning"
