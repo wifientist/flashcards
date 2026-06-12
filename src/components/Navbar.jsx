@@ -27,6 +27,7 @@ export default function Navbar() {
 
         {/* Desktop Nav */}
         <div className="hidden md:flex space-x-3 items-center">
+          {!user && <NavLink to="/">Home</NavLink>}
           {user && <NavLink to="/study">Study</NavLink>}
           <NavLink to="/manage">Manage</NavLink>
           {user && <NavLink to="/profile">Profile</NavLink>}
@@ -60,6 +61,7 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {menuOpen && (
         <div className="md:hidden bg-white border-t p-4 space-y-2">
+          {!user && <NavLink to="/">Home</NavLink>}
           {user && <NavLink to="/study">Study</NavLink>}
           <NavLink to="/manage">Manage</NavLink>
           {user && <NavLink to="/profile">Profile</NavLink>}
