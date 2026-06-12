@@ -30,26 +30,24 @@ export default function CardStudy() {
       <div className="flex items-center justify-center gap-3 px-4 pt-3">
         <div className="flex gap-2">
           {tab('study', 'Study')}
-          {tab('browse', 'Browse')}
+          {tab('browse', 'FlipOnly')}
           {tab('marked', '★ Marked')}
         </div>
-        {mode !== 'marked' && (
-          <select
-            value={deckId}
-            onChange={(e) => setDeckId(e.target.value)}
-            className="border rounded p-1 text-sm"
-          >
-            <option value="">All decks</option>
-            {decks.map((d) => (
-              <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
-            ))}
-          </select>
-        )}
+        <select
+          value={deckId}
+          onChange={(e) => setDeckId(e.target.value)}
+          className="border rounded p-1 text-sm"
+        >
+          <option value="">All decks</option>
+          {decks.map((d) => (
+            <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
+          ))}
+        </select>
       </div>
 
       {mode === 'study' && <ReviewMode deckId={deckId} />}
       {mode === 'browse' && <BrowseMode deckId={deckId} />}
-      {mode === 'marked' && <BrowseMode marked />}
+      {mode === 'marked' && <BrowseMode marked deckId={deckId} />}
     </div>
   );
 }

@@ -22,16 +22,18 @@ export default function BrowseMode({ deckId, featured = false, marked = false })
     const load = async () => {
       setLoading(true);
       try {
-        let url;
+        const params = new URLSearchParams();
+        let base;
         if (marked) {
-          url = '/api/study/marked';
+          base = '/api/study/marked';
+          if (deckId) params.set('deck_id', deckId);
         } else {
-          const params = new URLSearchParams();
+          base = '/api/cards';
           if (featured) params.set('featured', '1');
           else if (deckId) params.set('deck_id', deckId);
-          const qs = params.toString();
-          url = `/api/cards${qs ? `?${qs}` : ''}`;
         }
+        const qs = params.toString();
+        const url = `${base}${qs ? `?${qs}` : ''}`;
         const data = await api.get(url);
         setCards(data.cards || []);
         setIndex(0);
