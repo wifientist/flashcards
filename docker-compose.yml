@@ -1,0 +1,63 @@
+# Local full-stack: Postgres (data) + Redis (sessions/rate-limit) + API + web.
+#
+# Quick start:
+#   1. Put a strong secret in a repo-root .env:  JWT_SECRET_KEY=...
+#      (generate: python -c "import secrets; print(secrets.token_urlsafe(64))")
+#      Optionally set ADMIN_EMAIL / ADMIN_PASSWORD to auto-create an admin.
+#   2. docker compose up --build
+#   3. Open http://localhost:8080
+#
+# Note: ENVIRONMENT=development keeps cookies non-Secure so login works over
+# http://localhost. For a real deployment, serve over HTTPS and set
+# ENVIRONMENT=production.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: flashcards
+      POSTGRES_PASSWORD: flashcards
+      POSTGRES_DB: flashcards
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flashcards"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+psycopg2://flashcards:flashcards@postgres:5432/flashcards
+      REDIS_URL_0: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in a repo-root .env}
+      CORS_ORIGINS: http://localhost:8080
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    expose:
+      - "8000"
+
+  web:
+    build: .
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
