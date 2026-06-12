@@ -30,7 +30,7 @@ export default function Navbar() {
           <NavLink to="/">FlipOnly</NavLink>
           {user && <NavLink to="/study">Study</NavLink>}
           <span className="h-5 w-px bg-gray-300" aria-hidden="true" />
-          <NavLink to="/view">Cards</NavLink>
+          <NavLink to="/cards">Cards</NavLink>
           <NavLink to="/decks">Decks</NavLink>
           {user && <NavLink to="/dashboard">Dashboard</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
@@ -65,7 +65,7 @@ export default function Navbar() {
           <NavLink to="/">FlipOnly</NavLink>
           {user && <NavLink to="/study">Study</NavLink>}
           <hr className="my-1" />
-          <NavLink to="/view">Cards</NavLink>
+          <NavLink to="/cards">Cards</NavLink>
           <NavLink to="/decks">Decks</NavLink>
           {user && <NavLink to="/dashboard">Dashboard</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
