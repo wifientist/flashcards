@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import select
@@ -15,21 +16,26 @@ router = APIRouter()
 
 
 @router.get("/study/queue")
-def study_queue(limit: int = 20, db: Session = Depends(get_db),
+def study_queue(limit: int = 20, deck_id: Optional[str] = None,
+                db: Session = Depends(get_db),
                 payload=Depends(require_authenticated)):
     """The caller's study queue: cards due now (most overdue first), then new
-    (never-seen) cards, up to `limit`."""
+    (never-seen) cards, up to `limit`. Optionally scoped to one deck."""
     user_id = payload["user_id"]
     now = scheduler.now_utc()
 
-    # Cards that are scheduled and currently due.
-    due_progress = list(db.scalars(
+    # Cards that are scheduled and currently due (join Card to allow deck scope).
+    due_stmt = (
         select(Progress)
+        .join(Card, Card.id == Progress.card_id)
         .where(Progress.user_id == user_id,
                Progress.due.is_not(None),
                Progress.due <= now)
         .order_by(Progress.due.asc())
-    ))
+    )
+    if deck_id:
+        due_stmt = due_stmt.where(Card.deck_id == deck_id)
+    due_progress = list(db.scalars(due_stmt))
     progress_by_card = {p.card_id: p for p in due_progress}
     due_ids = [p.card_id for p in due_progress]
 
@@ -51,6 +57,8 @@ def study_queue(limit: int = 20, db: Session = Depends(get_db),
             select(Progress.card_id).where(Progress.user_id == user_id)
         ))
         new_stmt = select(Card)
+        if deck_id:
+            new_stmt = new_stmt.where(Card.deck_id == deck_id)
         if tracked:
             new_stmt = new_stmt.where(Card.id.not_in(tracked))
         for card in db.scalars(new_stmt):

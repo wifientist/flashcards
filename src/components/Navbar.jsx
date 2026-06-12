@@ -28,6 +28,7 @@ export default function Navbar() {
         {/* Desktop Nav */}
         <div className="hidden md:flex space-x-4 items-center">
           <NavLink to="/view">View</NavLink>
+          <NavLink to="/decks">Decks</NavLink>
           {user && <NavLink to="/create">Create</NavLink>}
           {user && <NavLink to="/study">Study</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
@@ -60,6 +61,7 @@ export default function Navbar() {
       {menuOpen && (
         <div className="md:hidden bg-white border-t p-4 space-y-2">
           <NavLink to="/view">View</NavLink>
+          <NavLink to="/decks">Decks</NavLink>
           {user && <NavLink to="/create">Create</NavLink>}
           {user && <NavLink to="/study">Study</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}

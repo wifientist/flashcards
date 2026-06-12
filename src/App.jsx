@@ -10,6 +10,7 @@ import CardViewer from './components/CardViewer';
 import CardStudy from './components/CardStudy';
 
 import AdminPage from './pages/AdminPage';
+import DecksPage from './pages/DecksPage';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         
         <Route path="/" element={<div className="text-center mt-10">Welcome to the Flashcard App!</div>} />
         <Route path="/view" element={<CardViewer />} />
+        <Route path="/decks" element={<DecksPage />} />
         <Route path="/create" element={<CardAdder />} />
         <Route path="/study" element={<CardStudy />} />
         <Route path="/admin" element={<AdminPage />} />

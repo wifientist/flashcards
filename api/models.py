@@ -10,11 +10,21 @@ class CardCreate(BaseModel):
     front: str
     back: str
     labels: Optional[List[str]] = []
+    deck_id: Optional[str] = None
 
 class CardUpdate(BaseModel):
     front: Optional[str] = None
     back: Optional[str] = None
     labels: Optional[List[str]] = None
+    deck_id: Optional[str] = None  # explicitly set to null to remove from deck
+
+class DeckCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class DeckUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
 
 class ProgressStatus(str, Enum):
     NEW = "new"

@@ -6,13 +6,22 @@ export default function CardViewer() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  const [deckId, setDeckId] = useState('');
+  const [decks, setDecks] = useState([]);
   const [flipped, setFlipped] = useState({});
+
+  useEffect(() => {
+    api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const fetchCards = async () => {
       try {
-        const url = filter ? `/api/cards?label=${encodeURIComponent(filter)}` : '/api/cards';
-        const data = await api.get(url);
+        const params = new URLSearchParams();
+        if (filter) params.set('label', filter);
+        if (deckId) params.set('deck_id', deckId);
+        const qs = params.toString();
+        const data = await api.get(`/api/cards${qs ? `?${qs}` : ''}`);
         setCards(data.cards);
       } catch (err) {
         console.error(err);
@@ -23,7 +32,7 @@ export default function CardViewer() {
     };
 
     fetchCards();
-  }, [filter]);
+  }, [filter, deckId]);
 
   const toggleFlip = (cardId) => {
     setFlipped((prev) => ({ ...prev, [cardId]: !prev[cardId] }));
@@ -35,7 +44,7 @@ export default function CardViewer() {
     <div className="p-4 max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold mb-4 text-center">All Flashcards</h2>
 
-      <div className="mb-4 flex justify-center">
+      <div className="mb-4 flex justify-center gap-2">
         <input
           type="text"
           placeholder="Filter by label..."
@@ -43,6 +52,16 @@ export default function CardViewer() {
           onChange={(e) => setFilter(e.target.value)}
           className="border border-gray-300 p-2 rounded"
         />
+        <select
+          value={deckId}
+          onChange={(e) => setDeckId(e.target.value)}
+          className="border border-gray-300 p-2 rounded"
+        >
+          <option value="">All decks</option>
+          {decks.map((d) => (
+            <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
+          ))}
+        </select>
       </div>
 
       {cards.length === 0 ? (
