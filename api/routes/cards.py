@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
 from datetime import datetime
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -11,6 +11,25 @@ from models import CardCreate, CardUpdate, ProgressUpdate, ProgressStatus
 from roles import require_roles, get_current_user, require_authenticated
 
 router = APIRouter()
+
+
+def _is_admin(payload) -> bool:
+    return bool(payload) and "admin" in (payload.get("roles") or [])
+
+
+def _visible_cards_stmt(stmt, payload):
+    """Restrict a Card query to what the caller may see: public cards (owner
+    NULL) plus their own private cards. Admins see everything; anonymous sees
+    only public."""
+    if _is_admin(payload):
+        return stmt
+    if payload and payload.get("authenticated"):
+        return stmt.where(or_(Card.owner_id.is_(None), Card.owner_id == payload["user_id"]))
+    return stmt.where(Card.owner_id.is_(None))
+
+
+def _can_modify_card(card: Card, payload) -> bool:
+    return _is_admin(payload) or (card.owner_id and card.owner_id == payload.get("user_id"))
 
 
 # --- serialization helpers -------------------------------------------------
@@ -41,6 +60,7 @@ def _serialize_card(card: Card, progress: Optional[Progress] = None,
         "back": card.back,
         "labels": list(card.labels or []),
         "deck_id": card.deck_id,
+        "owner_id": card.owner_id,
         "created_by": card.created_by,
         "created_at": _iso(card.created_at),
     }
@@ -53,31 +73,39 @@ def _serialize_card(card: Card, progress: Optional[Progress] = None,
 
 @router.post("/cards")
 def create_card(card: CardCreate, db: Session = Depends(get_db),
-                payload=Depends(require_roles(["admin"]))):
-    """Only admins can create cards"""
-    if card.deck_id and not db.get(Deck, card.deck_id):
-        raise HTTPException(status_code=400, detail="Deck not found")
+                payload=Depends(require_roles(["admin", "trusted"]))):
+    """Admins create public cards; trusted users create their own private cards."""
+    is_admin = _is_admin(payload)
+    # Only admins place cards into (public) decks; private cards are deck-less.
+    deck_id = None
+    if is_admin and card.deck_id:
+        if not db.get(Deck, card.deck_id):
+            raise HTTPException(status_code=400, detail="Deck not found")
+        deck_id = card.deck_id
+
     new_card = Card(
         front=card.front,
         back=card.back,
         labels=card.labels or [],
-        deck_id=card.deck_id,
+        deck_id=deck_id,
+        owner_id=None if is_admin else payload["user_id"],
         created_by=payload["user_id"],
     )
     db.add(new_card)
     db.commit()
     db.refresh(new_card)
-    return {"message": "Card created", "card_id": new_card.id}
+    return {"message": "Card created", "card_id": new_card.id, "owner_id": new_card.owner_id}
 
 
 @router.get("/cards")
 def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
-              featured: bool = False,
+              featured: bool = False, mine: bool = False,
               db: Session = Depends(get_db), payload=Depends(get_current_user)):
-    """List cards (public); includes the caller's per-card progress if authed.
+    """List cards the caller may see (public + their own private cards); includes
+    per-card progress if authed.
 
-    `featured=true` returns only cards in featured decks — this powers the
-    public, unauthenticated landing.
+    `featured=true` — only cards in featured decks (powers the public landing).
+    `mine=true` — only the caller's own private cards ("My Cards").
     """
     stmt = select(Card)
     if label:
@@ -88,6 +116,12 @@ def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
         stmt = stmt.where(
             Card.deck_id.in_(select(Deck.id).where(Deck.featured.is_(True)))
         )
+    if mine:
+        if not (payload and payload.get("authenticated")):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        stmt = stmt.where(Card.owner_id == payload["user_id"])
+    else:
+        stmt = _visible_cards_stmt(stmt, payload)
     cards = list(db.scalars(stmt))
 
     authed = bool(payload and payload.get("authenticated"))
@@ -109,9 +143,12 @@ def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
 @router.get("/cards/{card_id}")
 def get_card(card_id: str, db: Session = Depends(get_db),
              payload=Depends(get_current_user)):
-    """Get a specific card (public)."""
+    """Get a specific card, if the caller may see it."""
     card = db.get(Card, card_id)
     if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    # Hide others' private cards.
+    if card.owner_id and not _is_admin(payload) and card.owner_id != (payload or {}).get("user_id"):
         raise HTTPException(status_code=404, detail="Card not found")
 
     authed = bool(payload and payload.get("authenticated"))
@@ -124,11 +161,13 @@ def get_card(card_id: str, db: Session = Depends(get_db),
 
 @router.put("/cards/{card_id}")
 def update_card(card_id: str, card_update: CardUpdate, db: Session = Depends(get_db),
-                payload=Depends(require_roles(["admin"]))):
-    """Update card content - admin only"""
+                payload=Depends(require_authenticated)):
+    """Update card content — admins (any card) or the owner of a private card."""
     card = db.get(Card, card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
+    if not _can_modify_card(card, payload):
+        raise HTTPException(status_code=403, detail="Not allowed")
 
     if card_update.front is not None:
         card.front = card_update.front
@@ -136,8 +175,8 @@ def update_card(card_id: str, card_update: CardUpdate, db: Session = Depends(get
         card.back = card_update.back
     if card_update.labels is not None:
         card.labels = card_update.labels
-    # deck_id is nullable, so distinguish "omitted" from "explicitly set to null".
-    if "deck_id" in card_update.model_fields_set:
+    # Only admins file cards into (public) decks.
+    if _is_admin(payload) and "deck_id" in card_update.model_fields_set:
         if card_update.deck_id and not db.get(Deck, card_update.deck_id):
             raise HTTPException(status_code=400, detail="Deck not found")
         card.deck_id = card_update.deck_id
@@ -148,15 +187,40 @@ def update_card(card_id: str, card_update: CardUpdate, db: Session = Depends(get
 
 @router.delete("/cards/{card_id}")
 def delete_card(card_id: str, db: Session = Depends(get_db),
-                payload=Depends(require_roles(["admin"]))):
-    """Delete card - admin only. Progress rows cascade-delete."""
+                payload=Depends(require_authenticated)):
+    """Delete card — admins (any) or the owner of a private card. Progress cascades."""
     card = db.get(Card, card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
+    if not _can_modify_card(card, payload):
+        raise HTTPException(status_code=403, detail="Not allowed")
 
     db.delete(card)
     db.commit()
     return {"message": "Card deleted"}
+
+
+@router.post("/cards/{card_id}/copy")
+def copy_card_to_public(card_id: str, db: Session = Depends(get_db),
+                        payload=Depends(require_roles(["admin"]))):
+    """Admin: copy any card into the public pool (deck-less). The original is
+    untouched, so a user keeps their private card."""
+    card = db.get(Card, card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    new_card = Card(
+        front=card.front,
+        back=card.back,
+        labels=list(card.labels or []),
+        deck_id=None,
+        owner_id=None,  # public
+        created_by=payload["user_id"],
+    )
+    db.add(new_card)
+    db.commit()
+    db.refresh(new_card)
+    return {"message": "Card copied to public", "card_id": new_card.id}
 
 
 # --- user progress ---------------------------------------------------------

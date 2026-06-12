@@ -31,7 +31,8 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
 
-    cards = relationship("Card", back_populates="creator")
+    # cards has two FKs to users (created_by, owner_id) — disambiguate.
+    cards = relationship("Card", back_populates="creator", foreign_keys="Card.created_by")
     progress = relationship(
         "Progress", back_populates="user", cascade="all, delete-orphan"
     )
@@ -61,10 +62,14 @@ class Card(Base):
     deck_id = Column(
         String, ForeignKey("decks.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # NULL = public (admin-created). Set = private card owned by that user.
+    owner_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    creator = relationship("User", back_populates="cards")
+    creator = relationship("User", back_populates="cards", foreign_keys=[created_by])
     deck = relationship("Deck", back_populates="cards")
     progress = relationship(
         "Progress", back_populates="card", cascade="all, delete-orphan"

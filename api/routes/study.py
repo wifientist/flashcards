@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -56,7 +56,9 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
         tracked = set(db.scalars(
             select(Progress.card_id).where(Progress.user_id == user_id)
         ))
-        new_stmt = select(Card)
+        new_stmt = select(Card).where(
+            or_(Card.owner_id.is_(None), Card.owner_id == user_id)
+        )
         if deck_id:
             new_stmt = new_stmt.where(Card.deck_id == deck_id)
         if tracked:
