@@ -11,6 +11,9 @@ class CardCreate(BaseModel):
     back: str
     labels: Optional[List[str]] = []
     deck_id: Optional[str] = None
+    # Admins may set this to create a private (personal) card instead of a public
+    # app card. Ignored for trusted non-admins (their cards are always private).
+    private: bool = False
 
 class CardUpdate(BaseModel):
     front: Optional[str] = None

@@ -33,6 +33,23 @@ def test_owner_can_edit_and_delete_own(trusted, user):
     assert trusted.delete(f"/cards/{cid}").status_code == 200
 
 
+def test_admin_can_create_private_card(admin):
+    cid = admin.post("/cards", json={"front": "mine", "back": "x", "private": True}).json()["card_id"]
+    assert admin.get(f"/cards/{cid}").json()["card"]["owner_id"] is not None
+    assert "mine" in [c["front"] for c in admin.get("/cards?mine=1").json()["cards"]]
+
+
+def test_admin_default_card_is_public(admin):
+    cid = admin.post("/cards", json={"front": "app", "back": "x"}).json()["card_id"]
+    assert admin.get(f"/cards/{cid}").json()["card"]["owner_id"] is None
+
+
+def test_trusted_private_flag_cannot_make_public(trusted):
+    cid = trusted.post("/cards", json={"front": "p", "back": "x", "private": False}).json()["card_id"]
+    mine = trusted.get("/cards?mine=1").json()["cards"]
+    assert any(c["card_id"] == cid for c in mine)  # still private
+
+
 def test_private_card_not_leaked_by_export(trusted, user):
     trusted.post("/cards", json={"front": "secret", "back": "x"})
     assert "secret" not in user.get("/export/cards?format=csv").text

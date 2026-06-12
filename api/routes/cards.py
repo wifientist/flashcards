@@ -83,11 +83,15 @@ def _serialize_card(card: Card, progress: Optional[Progress] = None,
 @router.post("/cards")
 def create_card(card: CardCreate, db: Session = Depends(get_db),
                 payload=Depends(require_roles(["admin", "trusted"]))):
-    """Admins create public cards; trusted users create their own private cards."""
+    """Create a card. Trusted users always create private (personal) cards.
+    Admins create public app cards by default, or private cards with private=true."""
     is_admin = _is_admin(payload)
-    # Only admins place cards into (public) decks; private cards are deck-less.
+    # Trusted non-admins can only make private cards; admins choose.
+    make_private = (not is_admin) or card.private
+
+    # Decks are public-only, so a private card is always deck-less.
     deck_id = None
-    if is_admin and card.deck_id:
+    if not make_private and card.deck_id:
         if not db.get(Deck, card.deck_id):
             raise HTTPException(status_code=400, detail="Deck not found")
         deck_id = card.deck_id
@@ -97,7 +101,7 @@ def create_card(card: CardCreate, db: Session = Depends(get_db),
         back=card.back,
         labels=card.labels or [],
         deck_id=deck_id,
-        owner_id=None if is_admin else payload["user_id"],
+        owner_id=payload["user_id"] if make_private else None,
         created_by=payload["user_id"],
     )
     db.add(new_card)
