@@ -12,6 +12,7 @@ import AdminPage from './pages/AdminPage';
 import DecksPage from './pages/DecksPage';
 import FlipPage from './pages/FlipPage';
 import DashboardPage from './pages/DashboardPage';
+import ProposalsPage from './pages/ProposalsPage';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
         <Route path="/decks" element={<DecksPage />} />
         <Route path="/study" element={<StudyPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/proposals" element={<ProposalsPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/login" element={<UserLogin />} />
 
