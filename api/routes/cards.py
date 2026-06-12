@@ -32,6 +32,15 @@ def _can_modify_card(card: Card, payload) -> bool:
     return _is_admin(payload) or (card.owner_id and card.owner_id == payload.get("user_id"))
 
 
+def can_view_card(card: Card, payload) -> bool:
+    """Public cards are visible to all; private cards only to their owner (and admins)."""
+    if card.owner_id is None:
+        return True
+    if _is_admin(payload):
+        return True
+    return bool(payload) and card.owner_id == payload.get("user_id")
+
+
 # --- serialization helpers -------------------------------------------------
 
 def _iso(dt):
@@ -230,7 +239,8 @@ def update_card_progress(card_id: str, progress_update: ProgressUpdate,
                          db: Session = Depends(get_db),
                          payload=Depends(require_authenticated)):
     """Update the caller's progress on a card (upsert)."""
-    if not db.get(Card, card_id):
+    card = db.get(Card, card_id)
+    if not card or not can_view_card(card, payload):
         raise HTTPException(status_code=404, detail="Card not found")
 
     user_id = payload["user_id"]
@@ -330,7 +340,10 @@ def get_cards_by_status(status: str, db: Session = Depends(get_db),
         all_ids = set(db.scalars(select(Card.id)))
         card_ids |= (all_ids - tracked_ids)
 
-    cards = list(db.scalars(select(Card).where(Card.id.in_(card_ids)))) if card_ids else []
+    cards = []
+    if card_ids:
+        stmt = _visible_cards_stmt(select(Card).where(Card.id.in_(card_ids)), payload)
+        cards = list(db.scalars(stmt))
     serialized = [
         _serialize_card(c, progress_by_card.get(c.id), include_progress=True)
         for c in cards

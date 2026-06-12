@@ -56,11 +56,14 @@ class UserManager:
             user.roles = roles
             db.commit()
 
-    def deactivate_user(self, db: Session, user_id: str) -> None:
+    def set_active(self, db: Session, user_id: str, active: bool) -> None:
         user = db.get(User, user_id)
         if user:
-            user.is_active = False
+            user.is_active = active
             db.commit()
+
+    def deactivate_user(self, db: Session, user_id: str) -> None:
+        self.set_active(db, user_id, False)
 
 
 user_manager = UserManager()
