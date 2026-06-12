@@ -16,6 +16,7 @@ export default function CardsPage() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(''); // '', a status, 'starred', or 'due'
   const [deckIds, setDeckIds] = useState([]);
   const [decks, setDecks] = useState([]);
   const [labelSuggestions, setLabelSuggestions] = useState([]);
@@ -114,6 +115,16 @@ export default function CardsPage() {
     }
   };
 
+  const now = Date.now();
+  const matchesStatus = (card) => {
+    if (!statusFilter) return true;
+    const p = card.user_progress || {};
+    if (statusFilter === 'starred') return !!p.flagged;
+    if (statusFilter === 'due') return p.due && new Date(p.due).getTime() <= now;
+    return (p.status || 'new') === statusFilter;
+  };
+  const visibleCards = cards.filter(matchesStatus);
+
   if (loading) return <p className="text-center mt-8">Loading cards...</p>;
 
   return (
@@ -142,13 +153,30 @@ export default function CardsPage() {
           className="border border-gray-300 p-2 rounded"
         />
         <DeckMultiSelect decks={decks} selected={deckIds} onChange={setDeckIds} />
+        {user && (
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="border border-gray-300 p-2 rounded"
+          >
+            <option value="">Any status</option>
+            <option value="new">New</option>
+            <option value="learning">Learning</option>
+            <option value="relearning">Relearning</option>
+            <option value="review">Review</option>
+            <option value="mastered">Mastered</option>
+            <option value="difficult">Difficult</option>
+            <option value="due">⏰ Due now</option>
+            <option value="starred">★ Starred</option>
+          </select>
+        )}
       </div>
 
-      {cards.length === 0 ? (
+      {visibleCards.length === 0 ? (
         <p className="text-center">No cards found.</p>
       ) : (
         <div className="space-y-4">
-          {cards.map((card) =>
+          {visibleCards.map((card) =>
             editingId === card.card_id ? (
               <CardEditForm
                 key={card.card_id}
@@ -172,6 +200,13 @@ export default function CardsPage() {
                     )}
                   </p>
                   <p className="mb-2">{flipped[card.card_id] ? card.back : card.front}</p>
+                  {user && card.user_progress && (
+                    <p className="text-xs text-gray-500 mb-1">
+                      <span className="font-medium uppercase">{card.user_progress.status || 'new'}</span>
+                      {card.user_progress.review_count > 0 && <> · {card.user_progress.review_count}× reviewed</>}
+                      {card.user_progress.flagged && <> · ★</>}
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-1 items-center text-sm text-gray-500">
                     {card.labels?.map((l) => (
                       <button
