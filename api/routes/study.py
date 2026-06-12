@@ -15,78 +15,91 @@ import scheduler
 router = APIRouter()
 
 
+def _deck_id_list(deck_ids: Optional[str]):
+    """Parse a comma-separated deck_ids param into a list, or None for 'all'."""
+    if not deck_ids:
+        return None
+    ids = [d for d in deck_ids.split(",") if d]
+    return ids or None
+
+
 @router.get("/study/queue")
 def study_queue(limit: int = 20, deck_id: Optional[str] = None,
-                due_only: bool = False,
+                deck_ids: Optional[str] = None,
                 db: Session = Depends(get_db),
                 payload=Depends(require_authenticated)):
-    """The caller's study queue: cards due now (shuffled), then new (never-seen)
-    cards, up to `limit`. `due_only=true` returns just the due cards (no new
-    backfill). Optionally scoped to one deck."""
+    """The caller's study queue, ordered new-first then by FSRS priority:
+      1. NEW cards (never seen), shuffled — they always jump the line.
+      2. then DUE cards (scheduled, due now), most-overdue first.
+    Spans the given decks (comma-separated deck_ids, or single deck_id; omit for all)."""
     user_id = payload["user_id"]
     now = scheduler.now_utc()
-
-    # Cards that are scheduled and currently due (join Card to allow deck scope).
-    # Shuffled so the review order isn't a fixed sequence.
-    due_stmt = (
-        select(Progress)
-        .join(Card, Card.id == Progress.card_id)
-        .where(Progress.user_id == user_id,
-               Progress.due.is_not(None),
-               Progress.due <= now)
-        .order_by(func.random())
-    )
-    if deck_id:
-        due_stmt = due_stmt.where(Card.deck_id == deck_id)
-    due_progress = list(db.scalars(due_stmt))
-    progress_by_card = {p.card_id: p for p in due_progress}
-    due_ids = [p.card_id for p in due_progress]
-
-    cards_by_id = {}
-    if due_ids:
-        cards_by_id = {c.id: c for c in db.scalars(select(Card).where(Card.id.in_(due_ids)))}
+    decks = _deck_id_list(deck_ids) or ([deck_id] if deck_id else None)
 
     queue = []
-    for cid in due_ids:  # preserve due-order
-        card = cards_by_id.get(cid)
-        if card:
-            queue.append(_serialize_card(card, progress_by_card[cid], include_progress=True))
+
+    # 1) New cards (no progress yet), shuffled — these go first.
+    tracked = set(db.scalars(
+        select(Progress.card_id).where(Progress.user_id == user_id)
+    ))
+    new_stmt = select(Card).where(
+        or_(Card.owner_id.is_(None), Card.owner_id == user_id)
+    )
+    if decks is not None:
+        new_stmt = new_stmt.where(Card.deck_id.in_(decks))
+    if tracked:
+        new_stmt = new_stmt.where(Card.id.not_in(tracked))
+    new_stmt = new_stmt.order_by(func.random())
+    new_count = 0
+    for card in db.scalars(new_stmt):
+        queue.append(_serialize_card(card, None, include_progress=True))
+        new_count += 1
         if len(queue) >= limit:
             break
 
-    # Backfill with new cards (no progress row yet) unless due-only was requested.
-    if not due_only and len(queue) < limit:
-        tracked = set(db.scalars(
-            select(Progress.card_id).where(Progress.user_id == user_id)
-        ))
-        new_stmt = select(Card).where(
-            or_(Card.owner_id.is_(None), Card.owner_id == user_id)
+    # 2) Due cards (scheduled and due now), most-overdue first.
+    due_count = 0
+    if len(queue) < limit:
+        due_stmt = (
+            select(Progress)
+            .join(Card, Card.id == Progress.card_id)
+            .where(Progress.user_id == user_id,
+                   Progress.due.is_not(None),
+                   Progress.due <= now)
+            .order_by(Progress.due.asc())
         )
-        if deck_id:
-            new_stmt = new_stmt.where(Card.deck_id == deck_id)
-        if tracked:
-            new_stmt = new_stmt.where(Card.id.not_in(tracked))
-        new_stmt = new_stmt.order_by(func.random())
-        for card in db.scalars(new_stmt):
-            queue.append(_serialize_card(card, None, include_progress=True))
-            if len(queue) >= limit:
-                break
+        if decks is not None:
+            due_stmt = due_stmt.where(Card.deck_id.in_(decks))
+        due_progress = list(db.scalars(due_stmt))
+        if due_progress:
+            ids = [p.card_id for p in due_progress]
+            cards_by_id = {c.id: c for c in db.scalars(select(Card).where(Card.id.in_(ids)))}
+            pbc = {p.card_id: p for p in due_progress}
+            for cid in ids:
+                card = cards_by_id.get(cid)
+                if card:
+                    queue.append(_serialize_card(card, pbc[cid], include_progress=True))
+                    due_count += 1
+                if len(queue) >= limit:
+                    break
 
-    return {"queue": queue, "count": len(queue), "due_count": len(due_ids)}
+    return {"queue": queue, "count": len(queue), "new_count": new_count, "due_count": due_count}
 
 
 @router.get("/study/marked")
-def marked_cards(deck_id: Optional[str] = None, db: Session = Depends(get_db),
+def marked_cards(deck_id: Optional[str] = None, deck_ids: Optional[str] = None,
+                 db: Session = Depends(get_db),
                  payload=Depends(require_authenticated)):
-    """The caller's starred (flagged) cards, optionally scoped to one deck."""
+    """The caller's starred (flagged) cards, optionally scoped to deck(s)."""
     user_id = payload["user_id"]
     stmt = (
         select(Progress)
         .join(Card, Card.id == Progress.card_id)
         .where(Progress.user_id == user_id, Progress.flagged.is_(True))
     )
-    if deck_id:
-        stmt = stmt.where(Card.deck_id == deck_id)
+    decks = _deck_id_list(deck_ids) or ([deck_id] if deck_id else None)
+    if decks is not None:
+        stmt = stmt.where(Card.deck_id.in_(decks))
     rows = list(db.scalars(stmt))
     progress_by_card = {p.card_id: p for p in rows}
     ids = list(progress_by_card.keys())

@@ -41,11 +41,27 @@ def test_summary_includes_totals_starred_due(user, make_card):
     assert "due_now" in s
 
 
-def test_due_only_skips_new_backfill(user, make_card):
+def test_queue_reports_new_count(user, make_card):
     make_card()
     make_card()
-    assert user.get("/study/queue").json()["count"] >= 1   # backfills new
-    assert user.get("/study/queue?due_only=1").json()["count"] == 0  # no due, no backfill
+    q = user.get("/study/queue").json()
+    assert q["new_count"] == 2 and q["count"] == 2
+
+
+def test_queue_spans_multiple_decks(user, make_card, make_deck):
+    d1, d2 = make_deck(name="D1"), make_deck(name="D2")
+    make_card(front="c1", deck_id=d1)
+    make_card(front="c2", deck_id=d2)
+    make_card(front="c3")  # no deck — excluded by the scope
+    q = user.get(f"/study/queue?deck_ids={d1},{d2}").json()
+    assert {c["front"] for c in q["queue"]} == {"c1", "c2"}
+
+
+def test_study_decks_persist(user, make_deck):
+    d = make_deck(name="X")
+    assert user.get("/auth/me/study-decks").json()["deck_ids"] == []
+    user.put("/auth/me/study-decks", json={"deck_ids": [d]})
+    assert user.get("/auth/me/study-decks").json()["deck_ids"] == [d]
 
 
 def test_flag_and_marked_list(user, make_card):

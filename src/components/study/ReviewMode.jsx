@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import FlipCard from './FlipCard';
@@ -12,10 +11,9 @@ const GRADES = [
   { rating: 'easy', label: 'Easy', hint: 'Instant', desc: 'Effortless — longer interval.', cls: 'bg-blue-600 hover:bg-blue-700' },
 ];
 
-export default function ReviewMode({ deckId }) {
+export default function ReviewMode({ deckIds = [] }) {
   const { notify } = useToast();
-  const [searchParams] = useSearchParams();
-  const dueOnly = searchParams.get('due') === '1';
+  const deckKey = deckIds.join(',');
   const [queue, setQueue] = useState([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -27,11 +25,8 @@ export default function ReviewMode({ deckId }) {
   const loadQueue = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (deckId) params.set('deck_id', deckId);
-      if (dueOnly) params.set('due_only', '1');
-      const qs = params.toString();
-      const data = await api.get(`/api/study/queue${qs ? `?${qs}` : ''}`);
+      const qs = deckKey ? `?deck_ids=${encodeURIComponent(deckKey)}` : '';
+      const data = await api.get(`/api/study/queue${qs}`);
       setQueue(data.queue || []);
       setIndex(0);
       setFlipped(false);
@@ -42,7 +37,7 @@ export default function ReviewMode({ deckId }) {
     } finally {
       setLoading(false);
     }
-  }, [deckId, dueOnly, notify]);
+  }, [deckKey, notify]);
 
   useEffect(() => {
     loadQueue();
@@ -92,9 +87,7 @@ export default function ReviewMode({ deckId }) {
         <p className="text-gray-600">
           {reviewed > 0
             ? `You reviewed ${reviewed} card${reviewed === 1 ? '' : 's'}.`
-            : dueOnly
-              ? 'Nothing is due right now.'
-              : 'No cards to study right now.'}
+            : 'Nothing to study right now.'}
         </p>
         <button onClick={loadQueue} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
           Check again
@@ -108,7 +101,7 @@ export default function ReviewMode({ deckId }) {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-center gap-3 text-sm text-gray-500 pt-2">
-        <span>{dueOnly && <span className="text-green-600 font-medium">Due · </span>}{remaining} left · {reviewed} done</span>
+        <span>{remaining} left · {reviewed} done</span>
         <button
           onClick={toggleFlag}
           title={current.user_progress?.flagged ? 'Unstar' : 'Star this card'}

@@ -53,14 +53,12 @@ export default function DashboardPage() {
         <Tile label="Starred" value={summary.starred} accent="text-amber-500" />
       </div>
 
-      {summary.due_now > 0 && (
-        <Link
-          to="/study?due=1"
-          className="block text-center bg-blue-600 text-white rounded-lg py-3 mb-6 hover:bg-blue-700"
-        >
-          Review {summary.due_now} due card{summary.due_now === 1 ? '' : 's'} →
-        </Link>
-      )}
+      <Link
+        to="/study"
+        className="block text-center bg-blue-600 text-white rounded-lg py-3 mb-6 hover:bg-blue-700"
+      >
+        Study now →
+      </Link>
 
       <h2 className="text-lg font-semibold mb-2">Knowledge breakdown</h2>
       {total === 0 ? (
