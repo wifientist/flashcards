@@ -2,12 +2,15 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import CardAdder from '../components/CardAdder';
 
 export default function DecksPage() {
   const { user } = useAuth();
   const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');
   const ownsDeck = (deck) => deck.owner_id && deck.owner_id === user?.user_id;
+  const canAddToDeck = (deck) => ownsDeck(deck) || (isAdmin && !deck.owner_id);
+  const [adderDeck, setAdderDeck] = useState(null);
 
   const [decks, setDecks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -200,6 +203,11 @@ export default function DecksPage() {
                 <p className="text-xs text-gray-400 mt-1">{deck.card_count} cards</p>
               </div>
               <div className="flex flex-col items-end gap-1 text-sm">
+                {canAddToDeck(deck) && (
+                  <button onClick={() => setAdderDeck(deck)} className="text-blue-600 hover:underline font-medium">
+                    + Card
+                  </button>
+                )}
                 {isAdmin && !deck.owner_id && (
                   <label className="flex items-center gap-1 cursor-pointer select-none">
                     <input
@@ -240,6 +248,22 @@ export default function DecksPage() {
             </div>
             )
           )}
+        </div>
+      )}
+
+      {adderDeck && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 overflow-auto"
+          onClick={() => setAdderDeck(null)}
+        >
+          <div className="bg-white rounded-lg w-full max-w-md mt-12" onClick={(e) => e.stopPropagation()}>
+            <CardAdder deck={adderDeck} onCreated={load} />
+            <div className="px-6 pb-4 text-right">
+              <button onClick={() => setAdderDeck(null)} className="text-sm text-gray-500 hover:underline">
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
