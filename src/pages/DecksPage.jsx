@@ -11,6 +11,8 @@ export default function DecksPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
+  const [editingDeckId, setEditingDeckId] = useState(null);
+  const [editDeck, setEditDeck] = useState({ name: '', description: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,6 +46,25 @@ export default function DecksPage() {
   const toggleFeatured = async (deck) => {
     try {
       await api.put(`/api/decks/${deck.deck_id}`, { featured: !deck.featured });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const startEditDeck = (deck) => {
+    setEditingDeckId(deck.deck_id);
+    setEditDeck({ name: deck.name, description: deck.description || '' });
+  };
+
+  const saveDeck = async (deckId) => {
+    setError('');
+    try {
+      await api.put(`/api/decks/${deckId}`, {
+        name: editDeck.name,
+        description: editDeck.description || null,
+      });
+      setEditingDeckId(null);
       await load();
     } catch (err) {
       setError(err.message);
@@ -136,7 +157,27 @@ export default function DecksPage() {
         <p className="text-center text-gray-500">No decks yet.</p>
       ) : (
         <div className="space-y-2">
-          {decks.map((deck) => (
+          {decks.map((deck) =>
+            editingDeckId === deck.deck_id ? (
+              <div key={deck.deck_id} className="border border-blue-300 rounded p-4 bg-white space-y-2">
+                <input
+                  value={editDeck.name}
+                  onChange={(e) => setEditDeck((d) => ({ ...d, name: e.target.value }))}
+                  placeholder="Deck name"
+                  className="w-full border p-2 rounded"
+                />
+                <input
+                  value={editDeck.description}
+                  onChange={(e) => setEditDeck((d) => ({ ...d, description: e.target.value }))}
+                  placeholder="Description (optional)"
+                  className="w-full border p-2 rounded"
+                />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setEditingDeckId(null)} className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
+                  <button onClick={() => saveDeck(deck.deck_id)} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+                </div>
+              </div>
+            ) : (
             <div key={deck.deck_id} className="border rounded p-4 flex justify-between items-start bg-white">
               <div>
                 <p className="font-semibold">
@@ -182,13 +223,15 @@ export default function DecksPage() {
                   </label>
                 )}
                 {isAdmin && (
-                  <button onClick={() => deleteDeck(deck.deck_id)} className="text-red-600 hover:underline">
-                    Delete
-                  </button>
+                  <div className="space-x-2">
+                    <button onClick={() => startEditDeck(deck)} className="text-blue-600 hover:underline">Edit</button>
+                    <button onClick={() => deleteDeck(deck.deck_id)} className="text-red-600 hover:underline">Delete</button>
+                  </div>
                 )}
               </div>
             </div>
-          ))}
+            )
+          )}
         </div>
       )}
     </div>
