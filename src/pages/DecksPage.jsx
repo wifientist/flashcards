@@ -7,6 +7,9 @@ export default function DecksPage() {
   const { user } = useAuth();
   const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');
+  const canCreate = user?.roles?.some((r) => r === 'admin' || r === 'trusted');
+  const ownsDeck = (deck) => deck.owner_id && deck.owner_id === user?.user_id;
+  const canModifyDeck = (deck) => isAdmin || ownsDeck(deck);
 
   const [decks, setDecks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -131,9 +134,9 @@ export default function DecksPage() {
       </div>
       {error && <div className="bg-red-100 text-red-800 text-sm p-2 rounded mb-4">{error}</div>}
 
-      {isAdmin && (
+      {canCreate && (
         <form onSubmit={createDeck} className="bg-white border rounded p-4 mb-6 space-y-2">
-          <h2 className="font-semibold">New deck</h2>
+          <h2 className="font-semibold">New deck{!isAdmin && <span className="text-gray-400 text-sm"> (private to you)</span>}</h2>
           <input
             type="text"
             placeholder="Deck name"
@@ -184,6 +187,11 @@ export default function DecksPage() {
               <div>
                 <p className="font-semibold">
                   {deck.name}
+                  {ownsDeck(deck) && (
+                    <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded align-middle">
+                      🔒 Mine
+                    </span>
+                  )}
                   {deck.featured && (
                     <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded align-middle">
                       ★ Featured
@@ -194,7 +202,7 @@ export default function DecksPage() {
                 <p className="text-xs text-gray-400 mt-1">{deck.card_count} cards</p>
               </div>
               <div className="flex flex-col items-end gap-1 text-sm">
-                {isAdmin && (
+                {isAdmin && !deck.owner_id && (
                   <label className="flex items-center gap-1 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -210,7 +218,7 @@ export default function DecksPage() {
                     <button onClick={() => exportCards(deck.deck_id, 'json')} className="text-blue-600 hover:underline">JSON</button>
                   </div>
                 )}
-                {isAdmin && (
+                {isAdmin && !deck.owner_id && (
                   <label className="text-green-700 hover:underline cursor-pointer">
                     Import…
                     <input
@@ -224,7 +232,7 @@ export default function DecksPage() {
                     />
                   </label>
                 )}
-                {isAdmin && (
+                {canModifyDeck(deck) && (
                   <div className="space-x-2">
                     <button onClick={() => startEditDeck(deck)} className="text-blue-600 hover:underline">Edit</button>
                     <button onClick={() => deleteDeck(deck.deck_id)} className="text-red-600 hover:underline">Delete</button>

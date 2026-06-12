@@ -42,6 +42,21 @@ def can_view_card(card: Card, payload) -> bool:
     return bool(payload) and card.owner_id == payload.get("user_id")
 
 
+def _validate_deck_for_card(db: Session, deck_id, owner_id):
+    """A public card (owner None) may only go in a public deck; a private card
+    only in a deck its owner owns. Returns the validated deck_id (or None)."""
+    if not deck_id:
+        return None
+    deck = db.get(Deck, deck_id)
+    if not deck:
+        raise HTTPException(status_code=400, detail="Deck not found")
+    if owner_id is None and deck.owner_id is not None:
+        raise HTTPException(status_code=400, detail="A public card can't go in a private deck")
+    if owner_id is not None and deck.owner_id != owner_id:
+        raise HTTPException(status_code=400, detail="You can only file a card into your own deck")
+    return deck_id
+
+
 # --- serialization helpers -------------------------------------------------
 
 def _iso(dt):
@@ -89,20 +104,15 @@ def create_card(card: CardCreate, db: Session = Depends(get_db),
     is_admin = _is_admin(payload)
     # Trusted non-admins can only make private cards; admins choose.
     make_private = (not is_admin) or card.private
-
-    # Decks are public-only, so a private card is always deck-less.
-    deck_id = None
-    if not make_private and card.deck_id:
-        if not db.get(Deck, card.deck_id):
-            raise HTTPException(status_code=400, detail="Deck not found")
-        deck_id = card.deck_id
+    owner_id = payload["user_id"] if make_private else None
+    deck_id = _validate_deck_for_card(db, card.deck_id, owner_id)
 
     new_card = Card(
         front=card.front,
         back=card.back,
         labels=card.labels or [],
         deck_id=deck_id,
-        owner_id=payload["user_id"] if make_private else None,
+        owner_id=owner_id,
         created_by=payload["user_id"],
     )
     db.add(new_card)
@@ -189,11 +199,9 @@ def update_card(card_id: str, card_update: CardUpdate, db: Session = Depends(get
         card.back = card_update.back
     if card_update.labels is not None:
         card.labels = card_update.labels
-    # Only admins file cards into (public) decks.
-    if _is_admin(payload) and "deck_id" in card_update.model_fields_set:
-        if card_update.deck_id and not db.get(Deck, card_update.deck_id):
-            raise HTTPException(status_code=400, detail="Deck not found")
-        card.deck_id = card_update.deck_id
+    # Re-file into a deck (validated against the card's ownership).
+    if "deck_id" in card_update.model_fields_set:
+        card.deck_id = _validate_deck_for_card(db, card_update.deck_id, card.owner_id)
 
     db.commit()
     return {"message": "Card updated"}

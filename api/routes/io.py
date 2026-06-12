@@ -108,8 +108,13 @@ def export_cards(format: str = "json", deck_id: Optional[str] = None,
 def import_cards(req: ImportRequest, db: Session = Depends(get_db),
                  payload=Depends(require_roles(["admin"]))):
     """Bulk-create cards from CSV/JSON text. Admin only."""
-    if req.deck_id and not db.get(Deck, req.deck_id):
-        raise HTTPException(status_code=400, detail="Deck not found")
+    if req.deck_id:
+        deck = db.get(Deck, req.deck_id)
+        if not deck:
+            raise HTTPException(status_code=400, detail="Deck not found")
+        # Imported cards are public; they can only go into a public deck.
+        if deck.owner_id is not None:
+            raise HTTPException(status_code=400, detail="Can only import into public decks")
 
     try:
         items = _parse_content(req.format, req.content)

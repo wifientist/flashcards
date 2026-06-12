@@ -19,6 +19,12 @@ def test_import_json_counts(admin, make_deck):
     assert admin.get(f"/cards?deck_id={deck}").json()["cards"].__len__() == 2
 
 
+def test_import_into_private_deck_rejected(admin, trusted):
+    priv = trusted.post("/decks", json={"name": "p"}).json()["deck_id"]
+    r = admin.post("/import/cards", json={"format": "json", "content": "{}", "deck_id": priv})
+    assert r.status_code == 400
+
+
 def test_bad_format_400(admin):
     assert admin.post("/import/cards", json={"format": "xml", "content": "x"}).status_code == 400
 

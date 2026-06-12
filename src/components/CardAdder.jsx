@@ -19,12 +19,21 @@ export default function CardAdder() {
   const [makePrivate, setMakePrivate] = useState(false);
 
   useEffect(() => {
-    if (isAdmin) api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
+    api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
     api.get('/api/labels').then((d) => setLabelSuggestions((d.labels || []).map((l) => l.label))).catch(() => {});
-  }, [isAdmin]);
+  }, []);
 
-  // A public deck only applies to a public card.
-  const asPublic = isAdmin && !makePrivate;
+  // Trusted users always make private cards; admins choose.
+  const isPrivate = !isAdmin || makePrivate;
+  // Private cards go in your own decks; public cards go in public decks.
+  const deckOptions = decks.filter((d) =>
+    isPrivate ? d.owner_id === user?.user_id : !d.owner_id
+  );
+
+  const setCardType = (priv) => {
+    setMakePrivate(priv);
+    setDeckId(''); // deck list changes with type
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,13 +42,14 @@ export default function CardAdder() {
         front,
         back,
         labels,
-        deck_id: asPublic ? (deckId || null) : null,
+        deck_id: deckId || null,
         private: isAdmin ? makePrivate : true,
       });
       notify('Card created!', 'success');
       setFront('');
       setBack('');
       setLabels([]);
+      setDeckId('');
     } catch (err) {
       notify('Error: ' + err.message, 'error');
     }
@@ -63,11 +73,11 @@ export default function CardAdder() {
           <label className="block text-gray-700 mb-1">Card type:</label>
           <div className="flex gap-4 text-sm">
             <label className="flex items-center gap-1 cursor-pointer">
-              <input type="radio" checked={!makePrivate} onChange={() => setMakePrivate(false)} />
+              <input type="radio" checked={!makePrivate} onChange={() => setCardType(false)} />
               <span>Public (app card)</span>
             </label>
             <label className="flex items-center gap-1 cursor-pointer">
-              <input type="radio" checked={makePrivate} onChange={() => setMakePrivate(true)} />
+              <input type="radio" checked={makePrivate} onChange={() => setCardType(true)} />
               <span>🔒 Private (my card)</span>
             </label>
           </div>
@@ -101,21 +111,24 @@ export default function CardAdder() {
         <TagInput tags={labels} onChange={setLabels} suggestions={labelSuggestions} />
       </div>
 
-      {asPublic && (
-        <div>
-          <label className="block text-gray-700 mb-1">Deck:</label>
-          <select
-            value={deckId}
-            onChange={(e) => setDeckId(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">— No deck —</option>
-            {decks.map((d) => (
-              <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div>
+        <label className="block text-gray-700 mb-1">
+          Deck{isPrivate && <span className="text-gray-400"> (your decks)</span>}:
+        </label>
+        <select
+          value={deckId}
+          onChange={(e) => setDeckId(e.target.value)}
+          className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">— No deck —</option>
+          {deckOptions.map((d) => (
+            <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
+          ))}
+        </select>
+        {isPrivate && deckOptions.length === 0 && (
+          <p className="text-xs text-gray-400 mt-1">Create a private deck on the Decks page to organize your cards.</p>
+        )}
+      </div>
 
       <button
         type="submit"
