@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import FlipCard from './FlipCard';
 
 // Rapid-fire browsing: swipe left/right to move between cards, tap to flip.
@@ -11,6 +12,7 @@ import FlipCard from './FlipCard';
 //   else     -> all cards (optionally one deck)
 export default function BrowseMode({ deckId, featured = false, marked = false }) {
   const { user } = useAuth();
+  const { notify } = useToast();
   const [cards, setCards] = useState([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -36,13 +38,13 @@ export default function BrowseMode({ deckId, featured = false, marked = false })
         setFlipped(false);
       } catch (err) {
         console.error(err);
-        alert('Error loading cards');
+        notify('Error loading cards', 'error');
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [deckId, featured, marked]);
+  }, [deckId, featured, marked, notify]);
 
   const move = useCallback(
     (delta) => {
@@ -74,7 +76,7 @@ export default function BrowseMode({ deckId, featured = false, marked = false })
       }
     } catch (err) {
       console.error(err);
-      alert('Error updating star');
+      notify('Error updating star', 'error');
     }
   };
 
