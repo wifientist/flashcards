@@ -10,9 +10,10 @@ import FlipCard from './FlipCard';
 //   featured -> public featured-deck cards (landing)
 //   marked   -> the user's starred cards
 //   else     -> all cards (optionally one deck)
-export default function BrowseMode({ deckId, featured = false, marked = false }) {
+export default function BrowseMode({ deckIds = [], featured = false, marked = false }) {
   const { user } = useAuth();
   const { notify } = useToast();
+  const deckKey = deckIds.join(',');
   const [cards, setCards] = useState([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -26,11 +27,11 @@ export default function BrowseMode({ deckId, featured = false, marked = false })
         let base;
         if (marked) {
           base = '/api/study/marked';
-          if (deckId) params.set('deck_id', deckId);
+          if (deckKey) params.set('deck_ids', deckKey);
         } else {
           base = '/api/cards';
           if (featured) params.set('featured', '1');
-          else if (deckId) params.set('deck_id', deckId);
+          else if (deckKey) params.set('deck_ids', deckKey);
         }
         const qs = params.toString();
         const url = `${base}${qs ? `?${qs}` : ''}`;
@@ -46,7 +47,7 @@ export default function BrowseMode({ deckId, featured = false, marked = false })
       }
     };
     load();
-  }, [deckId, featured, marked, notify]);
+  }, [deckKey, featured, marked, notify]);
 
   const move = useCallback(
     (delta) => {

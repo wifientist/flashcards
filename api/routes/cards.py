@@ -123,6 +123,7 @@ def create_card(card: CardCreate, db: Session = Depends(get_db),
 
 @router.get("/cards")
 def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
+              deck_ids: Optional[str] = None,
               featured: bool = False, mine: bool = False,
               db: Session = Depends(get_db), payload=Depends(get_current_user)):
     """List cards the caller may see (public + their own private cards); includes
@@ -130,12 +131,14 @@ def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
 
     `featured=true` — only cards in featured decks (powers the public landing).
     `mine=true` — only the caller's own private cards ("My Cards").
+    `deck_id` (single) or `deck_ids` (comma-separated) scope to deck(s).
     """
     stmt = select(Card)
     if label:
         stmt = stmt.where(Card.labels.any(label))
-    if deck_id:
-        stmt = stmt.where(Card.deck_id == deck_id)
+    decks = [d for d in (deck_ids.split(",") if deck_ids else []) if d] or ([deck_id] if deck_id else [])
+    if decks:
+        stmt = stmt.where(Card.deck_id.in_(decks))
     if featured:
         stmt = stmt.where(
             Card.deck_id.in_(select(Deck.id).where(Deck.featured.is_(True)))

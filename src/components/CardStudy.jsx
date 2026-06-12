@@ -1,17 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../api/client';
 import ReviewMode from './study/ReviewMode';
 import BrowseMode from './study/BrowseMode';
+import DeckMultiSelect from './study/DeckMultiSelect';
 
-// Study section host: pick a mode (Study = FSRS grading of the due queue;
-// Browse = swipe through cards, no grading) and an optional deck scope.
+// Study section host: pick a mode (Study = FSRS-prioritized queue; FlipOnly =
+// swipe through cards; Marked = starred cards) and which decks to span. The
+// deck scope is persisted server-side per user, so it follows you everywhere.
 export default function CardStudy() {
   const [mode, setMode] = useState('study');
-  const [deckId, setDeckId] = useState('');
   const [decks, setDecks] = useState([]);
+  const [selectedDeckIds, setSelectedDeckIds] = useState([]);
 
   useEffect(() => {
     api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
+    api.get('/api/auth/me/study-decks').then((d) => setSelectedDeckIds(d.deck_ids || [])).catch(() => {});
+  }, []);
+
+  const updateDecks = useCallback((ids) => {
+    setSelectedDeckIds(ids);
+    api.put('/api/auth/me/study-decks', { deck_ids: ids }).catch(() => {});
   }, []);
 
   const tab = (value, label) => (
@@ -33,21 +41,12 @@ export default function CardStudy() {
           {tab('browse', 'FlipOnly')}
           {tab('marked', '★ Marked')}
         </div>
-        <select
-          value={deckId}
-          onChange={(e) => setDeckId(e.target.value)}
-          className="border rounded p-1 text-sm"
-        >
-          <option value="">All decks</option>
-          {decks.map((d) => (
-            <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
-          ))}
-        </select>
+        <DeckMultiSelect decks={decks} selected={selectedDeckIds} onChange={updateDecks} />
       </div>
 
-      {mode === 'study' && <ReviewMode deckId={deckId} />}
-      {mode === 'browse' && <BrowseMode deckId={deckId} />}
-      {mode === 'marked' && <BrowseMode marked deckId={deckId} />}
+      {mode === 'study' && <ReviewMode deckIds={selectedDeckIds} />}
+      {mode === 'browse' && <BrowseMode deckIds={selectedDeckIds} />}
+      {mode === 'marked' && <BrowseMode marked deckIds={selectedDeckIds} />}
     </div>
   );
 }

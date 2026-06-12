@@ -30,6 +30,9 @@ class User(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
+    # Persisted per-user study scope: which decks to span in the study queue.
+    # Empty = all decks.
+    study_deck_ids = Column(ARRAY(String), nullable=False, default=list, server_default="{}")
 
     # cards has two FKs to users (created_by, owner_id) — disambiguate.
     cards = relationship("Card", back_populates="creator", foreign_keys="Card.created_by")

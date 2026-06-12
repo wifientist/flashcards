@@ -91,6 +91,9 @@ class AdminUserCreate(BaseModel):
     password: str
     roles: Optional[List[str]] = ["user"]
 
+class StudyDecksUpdate(BaseModel):
+    deck_ids: List[str] = []
+
 class UserInfo(BaseModel):
     user_id: str
     email: str

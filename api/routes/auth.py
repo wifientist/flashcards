@@ -2,9 +2,10 @@ from fastapi import APIRouter, Request, HTTPException, status, Depends, Response
 from sqlalchemy.orm import Session
 from jwt_utils import create_access_token, create_refresh_token, verify_token
 from roles import get_current_user, require_admin
-from models import SessionInfo, UserLogin, RoleUpdateRequest, AdminUserCreate
+from models import SessionInfo, UserLogin, RoleUpdateRequest, AdminUserCreate, StudyDecksUpdate
 from database import get_db
 from db_models import User
+from roles import require_authenticated
 from user_manager import user_manager
 from session_manager import session_manager
 from rate_limit import rate_limit
@@ -175,6 +176,24 @@ def logout(request: Request, response: Response):
     _clear_auth_cookie(response, "session_id")
 
     return {"message": "Logged out successfully"}
+
+@router.get("/me/study-decks")
+def get_study_decks(db: Session = Depends(get_db), payload=Depends(require_authenticated)):
+    """The caller's persisted study deck scope (empty = all decks)."""
+    user = db.get(User, payload["user_id"])
+    return {"deck_ids": list(user.study_deck_ids or []) if user else []}
+
+
+@router.put("/me/study-decks")
+def set_study_decks(body: StudyDecksUpdate, db: Session = Depends(get_db),
+                    payload=Depends(require_authenticated)):
+    """Persist the caller's study deck scope."""
+    user = db.get(User, payload["user_id"])
+    if user:
+        user.study_deck_ids = body.deck_ids
+        db.commit()
+    return {"deck_ids": body.deck_ids}
+
 
 @router.get("/users", dependencies=[Depends(require_admin)])
 def list_users(db: Session = Depends(get_db)):
