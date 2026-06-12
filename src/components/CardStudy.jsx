@@ -16,11 +16,18 @@ export default function CardStudy() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [reviewed, setReviewed] = useState(0);
+  const [decks, setDecks] = useState([]);
+  const [deckId, setDeckId] = useState('');
+
+  useEffect(() => {
+    api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
+  }, []);
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.get('/api/study/queue');
+      const qs = deckId ? `?deck_id=${encodeURIComponent(deckId)}` : '';
+      const data = await api.get(`/api/study/queue${qs}`);
       setQueue(data.queue || []);
       setIndex(0);
       setFlipped(false);
@@ -31,7 +38,7 @@ export default function CardStudy() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [deckId]);
 
   useEffect(() => {
     loadQueue();
@@ -55,6 +62,19 @@ export default function CardStudy() {
     }
   };
 
+  const deckSelector = (
+    <select
+      value={deckId}
+      onChange={(e) => setDeckId(e.target.value)}
+      className="border rounded p-1 text-sm"
+    >
+      <option value="">All decks</option>
+      {decks.map((d) => (
+        <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
+      ))}
+    </select>
+  );
+
   if (loading) return <p className="text-center mt-8">Loading study queue…</p>;
 
   // Queue exhausted (or empty to begin with).
@@ -67,12 +87,15 @@ export default function CardStudy() {
             ? `You reviewed ${reviewed} card${reviewed === 1 ? '' : 's'}.`
             : 'Nothing is due right now.'}
         </p>
-        <button
-          onClick={loadQueue}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Check again
-        </button>
+        <div className="flex items-center justify-center gap-2">
+          {deckSelector}
+          <button
+            onClick={loadQueue}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Check again
+          </button>
+        </div>
       </div>
     );
   }
@@ -81,8 +104,9 @@ export default function CardStudy() {
 
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 5rem)' }}>
-      <div className="text-center text-sm text-gray-500 pt-2">
-        {remaining} left · {reviewed} done
+      <div className="flex items-center justify-center gap-3 text-sm text-gray-500 pt-2">
+        <span>{remaining} left · {reviewed} done</span>
+        {deckSelector}
       </div>
 
       {/* Flip card */}

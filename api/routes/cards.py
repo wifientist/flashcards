@@ -6,7 +6,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from database import get_db
-from db_models import Card, Progress
+from db_models import Card, Progress, Deck
 from models import CardCreate, CardUpdate, ProgressUpdate, ProgressStatus
 from roles import require_roles, get_current_user, require_authenticated
 
@@ -39,6 +39,7 @@ def _serialize_card(card: Card, progress: Optional[Progress] = None,
         "front": card.front,
         "back": card.back,
         "labels": list(card.labels or []),
+        "deck_id": card.deck_id,
         "created_by": card.created_by,
         "created_at": _iso(card.created_at),
     }
@@ -53,10 +54,13 @@ def _serialize_card(card: Card, progress: Optional[Progress] = None,
 def create_card(card: CardCreate, db: Session = Depends(get_db),
                 payload=Depends(require_roles(["admin"]))):
     """Only admins can create cards"""
+    if card.deck_id and not db.get(Deck, card.deck_id):
+        raise HTTPException(status_code=400, detail="Deck not found")
     new_card = Card(
         front=card.front,
         back=card.back,
         labels=card.labels or [],
+        deck_id=card.deck_id,
         created_by=payload["user_id"],
     )
     db.add(new_card)
@@ -66,12 +70,14 @@ def create_card(card: CardCreate, db: Session = Depends(get_db),
 
 
 @router.get("/cards")
-def get_cards(label: Optional[str] = None, db: Session = Depends(get_db),
-              payload=Depends(get_current_user)):
+def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
+              db: Session = Depends(get_db), payload=Depends(get_current_user)):
     """List cards (public); includes the caller's per-card progress if authed."""
     stmt = select(Card)
     if label:
         stmt = stmt.where(Card.labels.any(label))
+    if deck_id:
+        stmt = stmt.where(Card.deck_id == deck_id)
     cards = list(db.scalars(stmt))
 
     authed = bool(payload and payload.get("authenticated"))
@@ -120,6 +126,11 @@ def update_card(card_id: str, card_update: CardUpdate, db: Session = Depends(get
         card.back = card_update.back
     if card_update.labels is not None:
         card.labels = card_update.labels
+    # deck_id is nullable, so distinguish "omitted" from "explicitly set to null".
+    if "deck_id" in card_update.model_fields_set:
+        if card_update.deck_id and not db.get(Deck, card_update.deck_id):
+            raise HTTPException(status_code=400, detail="Deck not found")
+        card.deck_id = card_update.deck_id
 
     db.commit()
     return {"message": "Card updated"}

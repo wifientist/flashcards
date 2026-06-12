@@ -37,6 +37,18 @@ class User(Base):
     )
 
 
+class Deck(Base):
+    __tablename__ = "decks"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    created_by = Column(String, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    cards = relationship("Card", back_populates="deck")
+
+
 class Card(Base):
     __tablename__ = "cards"
 
@@ -44,10 +56,14 @@ class Card(Base):
     front = Column(Text, nullable=False)
     back = Column(Text, nullable=False)
     labels = Column(ARRAY(String), nullable=False, default=list)
+    deck_id = Column(
+        String, ForeignKey("decks.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     creator = relationship("User", back_populates="cards")
+    deck = relationship("Deck", back_populates="cards")
     progress = relationship(
         "Progress", back_populates="card", cascade="all, delete-orphan"
     )
