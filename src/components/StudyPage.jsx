@@ -24,8 +24,8 @@ export default function StudyPage() {
   );
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 5rem)' }}>
-      <div className="flex items-center justify-center gap-3 px-4 pt-3">
+    <div className="flex flex-col screen-below-nav">
+      <div className="flex flex-wrap items-center justify-center gap-2 px-4 pt-3">
         <div className="flex gap-2">
           {tab('study', 'Study')}
           {tab('flip', 'Flip')}

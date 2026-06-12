@@ -11,7 +11,7 @@ export default function FlipPage() {
   if (user) return <Navigate to="/study" replace />;
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 5rem)' }}>
+    <div className="flex flex-col screen-below-nav">
       <p className="text-center text-xs text-gray-500 pt-2">
         Swipe through the cards · <Link to="/login" className="text-blue-600 hover:underline">log in</Link> to study with spaced repetition
       </p>

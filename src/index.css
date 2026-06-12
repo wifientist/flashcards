@@ -19,4 +19,11 @@ transform: rotateY(180deg);
 .transform-style-3d {
     transform-style: preserve-3d;
 }
-  
+
+/* Full viewport below the fixed navbar. dvh excludes the mobile browser's
+   bottom toolbar so footer controls aren't pushed off-screen; vh is the
+   fallback for browsers without dvh support. */
+.screen-below-nav {
+    height: calc(100vh - 5rem);
+    height: calc(100dvh - 5rem);
+}
