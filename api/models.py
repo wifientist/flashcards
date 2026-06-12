@@ -21,10 +21,12 @@ class CardUpdate(BaseModel):
 class DeckCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    featured: bool = False
 
 class DeckUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    featured: Optional[bool] = None
 
 class ImportRequest(BaseModel):
     format: str           # "csv" | "json"

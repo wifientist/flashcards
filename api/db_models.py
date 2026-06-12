@@ -43,6 +43,8 @@ class Deck(Base):
     id = Column(String, primary_key=True, default=_uuid)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    # When true, this deck's cards appear in the public (unauthenticated) landing.
+    featured = Column(Boolean, nullable=False, default=False, server_default="false")
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
