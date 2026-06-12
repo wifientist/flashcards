@@ -9,7 +9,7 @@ from database import get_db
 from db_models import Card, Progress
 from models import ReviewRequest
 from roles import require_authenticated
-from routes.cards import _serialize_card
+from routes.cards import _serialize_card, can_view_card
 import scheduler
 
 router = APIRouter()
@@ -94,7 +94,8 @@ def marked_cards(db: Session = Depends(get_db),
 def review_card(card_id: str, review: ReviewRequest, db: Session = Depends(get_db),
                 payload=Depends(require_authenticated)):
     """Grade a card (again|hard|good|easy) and advance its FSRS schedule."""
-    if not db.get(Card, card_id):
+    card = db.get(Card, card_id)
+    if not card or not can_view_card(card, payload):
         raise HTTPException(status_code=404, detail="Card not found")
 
     user_id = payload["user_id"]

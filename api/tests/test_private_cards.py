@@ -33,6 +33,24 @@ def test_owner_can_edit_and_delete_own(trusted, user):
     assert trusted.delete(f"/cards/{cid}").status_code == 200
 
 
+def test_private_card_not_leaked_by_export(trusted, user):
+    trusted.post("/cards", json={"front": "secret", "back": "x"})
+    assert "secret" not in user.get("/export/cards?format=csv").text
+
+
+def test_private_card_not_leaked_by_status_new(trusted, user, make_card):
+    trusted.post("/cards", json={"front": "secret", "back": "x"})
+    make_card(front="pub")
+    fronts = [c["front"] for c in user.get("/cards/by-status/new").json()["cards"]]
+    assert "secret" not in fronts and "pub" in fronts
+
+
+def test_cannot_review_or_track_invisible_card(trusted, user):
+    cid = trusted.post("/cards", json={"front": "secret", "back": "x"}).json()["card_id"]
+    assert user.post(f"/cards/{cid}/review", json={"rating": "good"}).status_code == 404
+    assert user.put(f"/cards/{cid}/progress", json={"flagged": True}).status_code == 404
+
+
 def test_admin_copy_private_to_public_keeps_original(trusted, admin, user):
     cid = trusted.post("/cards", json={"front": "priv", "back": "x"}).json()["card_id"]
     new_id = admin.post(f"/cards/{cid}/copy").json()["card_id"]

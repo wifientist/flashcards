@@ -20,6 +20,7 @@ from database import get_db
 from db_models import Card, Deck
 from models import ImportRequest
 from roles import require_authenticated, require_roles
+from routes.cards import _visible_cards_stmt
 
 router = APIRouter()
 
@@ -80,6 +81,8 @@ def export_cards(format: str = "json", deck_id: Optional[str] = None,
     stmt = select(Card)
     if deck_id:
         stmt = stmt.where(Card.deck_id == deck_id)
+    # Only export cards the caller may see (public + own; admins see all).
+    stmt = _visible_cards_stmt(stmt, payload)
     cards = list(db.scalars(stmt))
     rows = [{"front": c.front, "back": c.back, "labels": list(c.labels or [])} for c in cards]
 

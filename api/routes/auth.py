@@ -198,15 +198,17 @@ def list_users(db: Session = Depends(get_db)):
     users = user_manager.list_users(db)
     return {"users": [_serialize_user(u) for u in users]}
 
-@router.put("/users/{user_id}/roles", dependencies=[Depends(require_admin)])
-def update_user_roles(user_id: str, role_update: RoleUpdateRequest, db: Session = Depends(get_db)):
+@router.put("/users/{user_id}/roles")
+def update_user_roles(user_id: str, role_update: RoleUpdateRequest,
+                      db: Session = Depends(get_db), payload=Depends(require_admin)):
     """Update user roles (admin only)"""
     user = user_manager.get_user_by_id(db, user_id)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Guard against an admin removing their own admin role and locking themselves out.
+    if user_id == payload["user_id"] and "admin" not in role_update.roles:
+        raise HTTPException(status_code=400, detail="You can't remove your own admin role")
 
     user_manager.update_user_roles(db, user_id, role_update.roles)
 
@@ -215,17 +217,24 @@ def update_user_roles(user_id: str, role_update: RoleUpdateRequest, db: Session 
 
     return {"message": "User roles updated successfully"}
 
-@router.delete("/users/{user_id}", dependencies=[Depends(require_admin)])
-def deactivate_user(user_id: str, db: Session = Depends(get_db)):
+@router.delete("/users/{user_id}")
+def deactivate_user(user_id: str, db: Session = Depends(get_db), payload=Depends(require_admin)):
     """Deactivate a user (admin only)"""
     user = user_manager.get_user_by_id(db, user_id)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user_id == payload["user_id"]:
+        raise HTTPException(status_code=400, detail="You can't deactivate yourself")
 
-    user_manager.deactivate_user(db, user_id)
+    user_manager.set_active(db, user_id, False)
     session_manager.invalidate_user_sessions(user_id)
-
     return {"message": "User deactivated successfully"}
+
+@router.post("/users/{user_id}/activate", dependencies=[Depends(require_admin)])
+def reactivate_user(user_id: str, db: Session = Depends(get_db)):
+    """Reactivate a user (admin only)"""
+    user = user_manager.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user_manager.set_active(db, user_id, True)
+    return {"message": "User reactivated successfully"}

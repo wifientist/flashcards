@@ -1,90 +1,174 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+
+const ROLES = ['user', 'trusted', 'admin'];
 
 export default function AdminPage() {
-  const [sessions, setSessions] = useState([]);
+  const { user: me } = useAuth();
   const [users, setUsers] = useState([]);
-  const [roleEdits, setRoleEdits] = useState({}); // user_id -> comma string
+  const [sessions, setSessions] = useState([]);
   const [error, setError] = useState('');
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       const data = await api.get('/api/auth/users');
       setUsers(data.users || []);
     } catch (err) {
       setError(err.message);
     }
-  };
+  }, []);
+
+  const loadSessions = useCallback(async () => {
+    try {
+      const data = await api.get('/api/admin/sessions');
+      setSessions(data.sessions || []);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
 
   useEffect(() => {
     loadUsers();
-    api
-      .get('/api/admin/sessions')
-      .then((data) => setSessions(data.sessions || []))
-      .catch((err) => setError(err.message));
-  }, []);
+    loadSessions();
+  }, [loadUsers, loadSessions]);
 
-  const handleRoleChange = (userId, roles) => {
-    setRoleEdits((prev) => ({ ...prev, [userId]: roles }));
-  };
-
-  const updateRoles = async (userId) => {
-    const draft = roleEdits[userId];
-    if (draft == null) return;
-    const roles = draft.split(',').map((r) => r.trim()).filter(Boolean);
+  const toggleRole = async (u, role) => {
+    const has = (u.roles || []).includes(role);
+    if (u.user_id === me?.user_id && role === 'admin' && has) {
+      setError("You can't remove your own admin role.");
+      return;
+    }
+    const roles = has ? u.roles.filter((r) => r !== role) : [...(u.roles || []), role];
+    setError('');
     try {
-      // Correct endpoint: roles live on the user, not the session, and are
-      // wrapped in a { roles: [...] } body (RoleUpdateRequest).
-      await api.put(`/api/auth/users/${userId}/roles`, { roles });
-      setRoleEdits((prev) => {
-        const next = { ...prev };
-        delete next[userId];
-        return next;
-      });
+      await api.put(`/api/auth/users/${u.user_id}/roles`, { roles });
       await loadUsers();
     } catch (err) {
-      alert(`Failed to update roles: ${err.message}`);
+      setError(err.message);
+    }
+  };
+
+  const setActive = async (u, active) => {
+    setError('');
+    try {
+      if (active) await api.post(`/api/auth/users/${u.user_id}/activate`);
+      else await api.del(`/api/auth/users/${u.user_id}`);
+      await loadUsers();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const forceLogout = async (sessionId) => {
+    setError('');
+    try {
+      await api.del(`/api/admin/sessions/${sessionId}`);
+      await loadSessions();
+    } catch (err) {
+      setError(err.message);
     }
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl mb-4">Admin Dashboard</h1>
-      {error && (
-        <div className="bg-red-100 text-red-800 text-sm p-2 rounded mb-4">{error}</div>
-      )}
+    <div className="p-4 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
+      {error && <div className="bg-red-100 text-red-800 text-sm p-2 rounded mb-4">{error}</div>}
 
-      <h2 className="text-xl mb-4">Users</h2>
-      {users.map((user) => (
-        <div key={user.user_id} className="border p-4 mb-2">
-          <p><strong>User:</strong> {user.email}</p>
-          <p><strong>Roles:</strong> {(user.roles || []).join(', ')}</p>
-          <div className="mt-2 flex items-center">
-            <input
-              type="text"
-              placeholder="Comma-separated roles, e.g. user,admin"
-              className="border p-1 mr-2 flex-1"
-              value={roleEdits[user.user_id] ?? (user.roles || []).join(', ')}
-              onChange={(e) => handleRoleChange(user.user_id, e.target.value)}
-            />
-            <button
-              className="px-2 py-1 border bg-gray-100"
-              onClick={() => updateRoles(user.user_id)}
-            >
-              Update Roles
-            </button>
-          </div>
-        </div>
-      ))}
+      <h2 className="text-xl font-semibold mb-2">Users ({users.length})</h2>
+      <div className="overflow-x-auto border rounded mb-8">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left">
+            <tr>
+              <th className="p-2">Email</th>
+              <th className="p-2">Roles</th>
+              <th className="p-2">Last login</th>
+              <th className="p-2">Status</th>
+              <th className="p-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => {
+              const isSelf = u.user_id === me?.user_id;
+              return (
+                <tr key={u.user_id} className="border-t">
+                  <td className="p-2">
+                    {u.email}{isSelf && <span className="text-xs text-gray-400"> (you)</span>}
+                  </td>
+                  <td className="p-2">
+                    <div className="flex gap-3">
+                      {ROLES.map((role) => (
+                        <label key={role} className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={(u.roles || []).includes(role)}
+                            disabled={isSelf && role === 'admin'}
+                            onChange={() => toggleRole(u, role)}
+                          />
+                          <span>{role}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="p-2 text-gray-500">
+                    {u.last_login ? new Date(u.last_login).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="p-2">
+                    {u.is_active
+                      ? <span className="text-green-700">Active</span>
+                      : <span className="text-gray-400">Inactive</span>}
+                  </td>
+                  <td className="p-2">
+                    {u.is_active ? (
+                      <button
+                        onClick={() => setActive(u, false)}
+                        disabled={isSelf}
+                        className="text-red-600 hover:underline disabled:text-gray-300 disabled:no-underline"
+                      >
+                        Deactivate
+                      </button>
+                    ) : (
+                      <button onClick={() => setActive(u, true)} className="text-green-700 hover:underline">
+                        Reactivate
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
-      <h2 className="text-xl mb-4 mt-6">Active Sessions</h2>
-      {sessions.map((session) => (
-        <div key={session.session_id} className="border p-4 mb-2">
-          <p><strong>Session:</strong> {session.session_id}</p>
-          <p><strong>Authenticated:</strong> {String(session.authenticated)}</p>
-          <p><strong>Roles:</strong> {(session.roles || []).join(', ')}</p>
-        </div>
-      ))}
+      <h2 className="text-xl font-semibold mb-2">Active Sessions ({sessions.length})</h2>
+      <div className="overflow-x-auto border rounded">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left">
+            <tr>
+              <th className="p-2">Session</th>
+              <th className="p-2">Roles</th>
+              <th className="p-2">Created</th>
+              <th className="p-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sessions.map((s) => (
+              <tr key={s.session_id} className="border-t">
+                <td className="p-2 font-mono text-xs">{s.session_id.slice(0, 8)}…</td>
+                <td className="p-2">{(s.roles || []).join(', ')}</td>
+                <td className="p-2 text-gray-500">
+                  {s.created_at ? new Date(s.created_at).toLocaleString() : '—'}
+                </td>
+                <td className="p-2">
+                  <button onClick={() => forceLogout(s.session_id)} className="text-red-600 hover:underline">
+                    Force logout
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
