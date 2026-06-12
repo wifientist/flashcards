@@ -5,6 +5,18 @@ import { useToast } from '../context/ToastContext';
 import TagInput from './TagInput';
 import CardAdder from './CardAdder';
 import DeckMultiSelect from './study/DeckMultiSelect';
+import MultiSelect from './MultiSelect';
+
+const STATUS_OPTIONS = [
+  { value: 'new', label: 'New' },
+  { value: 'learning', label: 'Learning' },
+  { value: 'relearning', label: 'Relearning' },
+  { value: 'review', label: 'Review' },
+  { value: 'mastered', label: 'Mastered' },
+  { value: 'difficult', label: 'Difficult' },
+  { value: 'due', label: '⏰ Due now' },
+  { value: 'starred', label: '★ Starred' },
+];
 
 export default function CardsPage() {
   const { user } = useAuth();
@@ -16,7 +28,7 @@ export default function CardsPage() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState(''); // '', a status, 'starred', or 'due'
+  const [statusFilters, setStatusFilters] = useState([]); // statuses + 'starred'/'due'
   const [deckIds, setDeckIds] = useState([]);
   const [decks, setDecks] = useState([]);
   const [labelSuggestions, setLabelSuggestions] = useState([]);
@@ -116,14 +128,15 @@ export default function CardsPage() {
   };
 
   const now = Date.now();
-  const matchesStatus = (card) => {
-    if (!statusFilter) return true;
+  const matchOne = (card, f) => {
     const p = card.user_progress || {};
-    if (statusFilter === 'starred') return !!p.flagged;
-    if (statusFilter === 'due') return p.due && new Date(p.due).getTime() <= now;
-    return (p.status || 'new') === statusFilter;
+    if (f === 'starred') return !!p.flagged;
+    if (f === 'due') return p.due && new Date(p.due).getTime() <= now;
+    return (p.status || 'new') === f;
   };
-  const visibleCards = cards.filter(matchesStatus);
+  const visibleCards = cards.filter(
+    (card) => statusFilters.length === 0 || statusFilters.some((f) => matchOne(card, f))
+  );
 
   if (loading) return <p className="text-center mt-8">Loading cards...</p>;
 
@@ -154,21 +167,13 @@ export default function CardsPage() {
         />
         <DeckMultiSelect decks={decks} selected={deckIds} onChange={setDeckIds} />
         {user && (
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-gray-300 p-2 rounded"
-          >
-            <option value="">Any status</option>
-            <option value="new">New</option>
-            <option value="learning">Learning</option>
-            <option value="relearning">Relearning</option>
-            <option value="review">Review</option>
-            <option value="mastered">Mastered</option>
-            <option value="difficult">Difficult</option>
-            <option value="due">⏰ Due now</option>
-            <option value="starred">★ Starred</option>
-          </select>
+          <MultiSelect
+            label="Status"
+            allLabel="Any status"
+            options={STATUS_OPTIONS}
+            selected={statusFilters}
+            onChange={setStatusFilters}
+          />
         )}
       </div>
 
