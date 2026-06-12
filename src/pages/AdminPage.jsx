@@ -1,15 +1,48 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const ROLES = ['user', 'trusted', 'admin'];
 
 export default function AdminPage() {
   const { user: me } = useAuth();
+  const { notify } = useToast();
   const [users, setUsers] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [error, setError] = useState('');
   const [newUser, setNewUser] = useState({ email: '', password: '', roles: ['user'] });
+
+  // Audit: review a user's cards and copy them into a public deck.
+  const [publicDecks, setPublicDecks] = useState([]);
+  const [auditUserId, setAuditUserId] = useState('');
+  const [auditCards, setAuditCards] = useState([]);
+  const [copyTarget, setCopyTarget] = useState('');
+
+  const loadAuditCards = useCallback(async (uid) => {
+    if (!uid) { setAuditCards([]); return; }
+    try {
+      const data = await api.get(`/api/cards?owner=${encodeURIComponent(uid)}`);
+      setAuditCards(data.cards || []);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    api.get('/api/decks')
+      .then((d) => setPublicDecks((d.decks || []).filter((x) => !x.owner_id)))
+      .catch(() => {});
+  }, []);
+
+  const copyCard = async (cardId) => {
+    try {
+      await api.post(`/api/cards/${cardId}/copy`, { deck_id: copyTarget || null });
+      notify('Copied to public.', 'success');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const loadUsers = useCallback(async () => {
     try {
@@ -196,6 +229,51 @@ export default function AdminPage() {
             })}
           </tbody>
         </table>
+      </div>
+
+      <h2 className="text-xl font-semibold mb-2">Audit user content</h2>
+      <div className="border rounded p-4 mb-8 bg-white space-y-3">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-gray-500">User:</span>
+          <select
+            value={auditUserId}
+            onChange={(e) => { setAuditUserId(e.target.value); loadAuditCards(e.target.value); }}
+            className="border p-2 rounded"
+          >
+            <option value="">Select a user…</option>
+            {users.map((u) => (
+              <option key={u.user_id} value={u.user_id}>{u.email}</option>
+            ))}
+          </select>
+          {auditUserId && (
+            <>
+              <span className="text-gray-500 ml-2">Copy into:</span>
+              <select value={copyTarget} onChange={(e) => setCopyTarget(e.target.value)} className="border p-2 rounded">
+                <option value="">— No deck —</option>
+                {publicDecks.map((d) => (
+                  <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
+                ))}
+              </select>
+            </>
+          )}
+        </div>
+
+        {auditUserId && (
+          auditCards.length === 0 ? (
+            <p className="text-sm text-gray-500">This user has no private cards.</p>
+          ) : (
+            <ul className="divide-y text-sm">
+              {auditCards.map((c) => (
+                <li key={c.card_id} className="py-2 flex items-center justify-between gap-3">
+                  <span className="truncate"><strong>{c.front}</strong> → {c.back}</span>
+                  <button onClick={() => copyCard(c.card_id)} className="text-green-700 hover:underline whitespace-nowrap">
+                    Copy to public →
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
+        )}
       </div>
 
       <h2 className="text-xl font-semibold mb-2">Active Sessions ({sessions.length})</h2>

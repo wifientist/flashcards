@@ -68,6 +68,23 @@ def test_cannot_review_or_track_invisible_card(trusted, user):
     assert user.put(f"/cards/{cid}/progress", json={"flagged": True}).status_code == 404
 
 
+def test_admin_can_audit_a_users_cards(trusted, admin):
+    trusted.post("/cards", json={"front": "p1", "back": "x"})
+    trusted.post("/cards", json={"front": "p2", "back": "y"})
+    uid = next(u["user_id"] for u in admin.get("/auth/users").json()["users"]
+               if u["email"] == "trusted@test.com")
+    fronts = {c["front"] for c in admin.get(f"/cards?owner={uid}").json()["cards"]}
+    assert {"p1", "p2"} <= fronts
+
+
+def test_admin_copy_into_public_deck(trusted, admin, user, make_deck):
+    dest = make_deck(name="dest")
+    cid = trusted.post("/cards", json={"front": "priv", "back": "x"}).json()["card_id"]
+    new_id = admin.post(f"/cards/{cid}/copy", json={"deck_id": dest}).json()["card_id"]
+    card = user.get(f"/cards/{new_id}").json()["card"]  # public -> visible to anyone
+    assert card["deck_id"] == dest and card["owner_id"] is None
+
+
 def test_admin_copy_private_to_public_keeps_original(trusted, admin, user):
     cid = trusted.post("/cards", json={"front": "priv", "back": "x"}).json()["card_id"]
     new_id = admin.post(f"/cards/{cid}/copy").json()["card_id"]

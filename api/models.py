@@ -36,6 +36,9 @@ class ImportRequest(BaseModel):
     content: str          # raw file text
     deck_id: Optional[str] = None  # target deck; null imports unfiled cards
 
+class CopyRequest(BaseModel):
+    deck_id: Optional[str] = None  # target public deck (null = deck-less)
+
 class ProgressStatus(str, Enum):
     NEW = "new"
     LEARNING = "learning"

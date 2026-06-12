@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from db_models import Card, Progress, Deck
-from models import CardCreate, CardUpdate, ProgressUpdate, ProgressStatus
+from models import CardCreate, CardUpdate, ProgressUpdate, ProgressStatus, CopyRequest
 from roles import require_roles, get_current_user, require_authenticated
 import scheduler
 
@@ -144,7 +144,7 @@ def create_card(card: CardCreate, db: Session = Depends(get_db),
 @router.get("/cards")
 def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
               deck_ids: Optional[str] = None,
-              featured: bool = False, mine: bool = False,
+              featured: bool = False, mine: bool = False, owner: Optional[str] = None,
               db: Session = Depends(get_db), payload=Depends(get_current_user)):
     """List cards the caller may see (public + their own private cards); includes
     per-card progress if authed.
@@ -163,6 +163,8 @@ def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
         stmt = stmt.where(
             Card.deck_id.in_(select(Deck.id).where(Deck.featured.is_(True)))
         )
+    if owner:  # admin audit: a specific user's cards (visibility still applies below)
+        stmt = stmt.where(Card.owner_id == owner)
     if mine:
         if not (payload and payload.get("authenticated")):
             raise HTTPException(status_code=401, detail="Authentication required")
@@ -246,19 +248,21 @@ def delete_card(card_id: str, db: Session = Depends(get_db),
 
 
 @router.post("/cards/{card_id}/copy")
-def copy_card_to_public(card_id: str, db: Session = Depends(get_db),
+def copy_card_to_public(card_id: str, body: Optional[CopyRequest] = None,
+                        db: Session = Depends(get_db),
                         payload=Depends(require_roles(["admin"]))):
-    """Admin: copy any card into the public pool (deck-less). The original is
-    untouched, so a user keeps their private card."""
+    """Admin: copy any card into the public pool, optionally into a public deck.
+    The original is untouched, so a user keeps their private card."""
     card = db.get(Card, card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
 
+    target_deck = _validate_public_deck(db, body.deck_id) if (body and body.deck_id) else None
     new_card = Card(
         front=card.front,
         back=card.back,
         labels=list(card.labels or []),
-        deck_id=None,
+        deck_id=target_deck,
         owner_id=None,  # public
         created_by=payload["user_id"],
     )
