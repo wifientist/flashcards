@@ -19,6 +19,28 @@ def test_import_json_counts(admin, make_deck):
     assert admin.get(f"/cards?deck_id={deck}").json()["cards"].__len__() == 2
 
 
+def test_import_dedups_against_existing_and_within_batch(admin, make_deck):
+    deck = make_deck()
+    admin.post("/import/cards", json={"format": "json", "content": JSON_PAYLOAD, "deck_id": deck})
+    # Re-import an overlapping list (bonjour dup, BONJOUR case-dup, one new).
+    payload = json.dumps({"cards": [
+        {"front": "bonjour", "back": "hello"},   # exact dup of existing
+        {"front": "BONJOUR", "back": "Hello"},   # case-insensitive dup
+        {"front": "au revoir", "back": "goodbye"},  # new
+    ]})
+    r = admin.post("/import/cards", json={"format": "json", "content": payload, "deck_id": deck})
+    assert r.json() == {"imported": 1, "skipped": 2}
+    assert len(admin.get(f"/cards?deck_id={deck}").json()["cards"]) == 3
+
+
+def test_import_dedup_is_per_deck(admin, make_deck):
+    a, b = make_deck(), make_deck()
+    admin.post("/import/cards", json={"format": "json", "content": JSON_PAYLOAD, "deck_id": a})
+    # Same cards into a different deck are NOT treated as duplicates.
+    r = admin.post("/import/cards", json={"format": "json", "content": JSON_PAYLOAD, "deck_id": b})
+    assert r.json() == {"imported": 2, "skipped": 1}
+
+
 def test_import_into_private_deck_rejected(admin, trusted):
     trusted.post("/cards", json={"front": "x", "back": "y"})  # creates trusted's My Cards deck
     priv = next(d["deck_id"] for d in trusted.get("/decks").json()["decks"] if d["owner_id"])

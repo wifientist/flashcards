@@ -121,6 +121,17 @@ def import_cards(req: ImportRequest, db: Session = Depends(get_db),
     except (ValueError, json.JSONDecodeError) as e:
         raise HTTPException(status_code=400, detail=f"Could not parse {req.format}: {e}")
 
+    # De-dup against cards already in the target deck (same front+back), so
+    # re-importing an overlapping list doesn't create duplicates. Also catches
+    # repeats within the file itself. Keys are case-insensitive on trimmed text.
+    def _key(front: str, back: str) -> tuple:
+        return (front.casefold(), back.casefold())
+
+    existing = db.execute(
+        select(Card.front, Card.back).where(Card.deck_id == req.deck_id)
+    ).all()
+    seen = {_key(f, b) for f, b in existing}
+
     imported = 0
     skipped = 0
     for item in items:
@@ -129,6 +140,11 @@ def import_cards(req: ImportRequest, db: Session = Depends(get_db),
         if not front or not back:
             skipped += 1
             continue
+        key = _key(front, back)
+        if key in seen:
+            skipped += 1
+            continue
+        seen.add(key)
         labels = [_clean_text(l) for l in _normalize_labels(item.get("labels"))]
         db.add(Card(
             front=front,
