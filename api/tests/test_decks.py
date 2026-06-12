@@ -35,3 +35,14 @@ def test_update_deck(admin, make_deck):
     deck = make_deck(name="old")
     assert admin.put(f"/decks/{deck}", json={"name": "new"}).status_code == 200
     assert admin.get(f"/decks/{deck}").json()["deck"]["name"] == "new"
+
+
+def test_featured_filter_is_public(client, admin, make_deck, make_card):
+    feat = make_deck(name="Public")
+    admin.put(f"/decks/{feat}", json={"featured": True})
+    make_card(front="pub", deck_id=feat)
+    make_card(front="priv")  # unfiled, not featured
+
+    # unauthenticated visitor sees only featured-deck cards
+    fronts = [c["front"] for c in client.get("/cards?featured=1").json()["cards"]]
+    assert fronts == ["pub"]

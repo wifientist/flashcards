@@ -15,6 +15,7 @@ def _serialize_deck(deck: Deck, card_count: int = 0) -> dict:
         "deck_id": deck.id,
         "name": deck.name,
         "description": deck.description,
+        "featured": deck.featured,
         "created_by": deck.created_by,
         "created_at": deck.created_at.isoformat() if deck.created_at else None,
         "card_count": card_count,
@@ -51,6 +52,7 @@ def create_deck(deck: DeckCreate, db: Session = Depends(get_db),
     new_deck = Deck(
         name=deck.name,
         description=deck.description,
+        featured=deck.featured,
         created_by=payload["user_id"],
     )
     db.add(new_deck)
@@ -70,6 +72,8 @@ def update_deck(deck_id: str, deck_update: DeckUpdate, db: Session = Depends(get
         deck.name = deck_update.name
     if deck_update.description is not None:
         deck.description = deck_update.description
+    if deck_update.featured is not None:
+        deck.featured = deck_update.featured
     db.commit()
     return {"message": "Deck updated"}
 

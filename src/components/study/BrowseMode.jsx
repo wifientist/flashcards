@@ -5,7 +5,8 @@ import FlipCard from './FlipCard';
 
 // Rapid-fire browsing: swipe left/right to move between cards, tap to flip.
 // No grading and no FSRS review is recorded — this is just for quick passes.
-export default function BrowseMode({ deckId }) {
+// `featured` scopes to public/featured-deck cards (used by the public landing).
+export default function BrowseMode({ deckId, featured = false }) {
   const [cards, setCards] = useState([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -15,8 +16,11 @@ export default function BrowseMode({ deckId }) {
     const load = async () => {
       setLoading(true);
       try {
-        const qs = deckId ? `?deck_id=${encodeURIComponent(deckId)}` : '';
-        const data = await api.get(`/api/cards${qs}`);
+        const params = new URLSearchParams();
+        if (featured) params.set('featured', '1');
+        else if (deckId) params.set('deck_id', deckId);
+        const qs = params.toString();
+        const data = await api.get(`/api/cards${qs ? `?${qs}` : ''}`);
         setCards(data.cards || []);
         setIndex(0);
         setFlipped(false);
@@ -28,7 +32,7 @@ export default function BrowseMode({ deckId }) {
       }
     };
     load();
-  }, [deckId]);
+  }, [deckId, featured]);
 
   const move = useCallback(
     (delta) => {

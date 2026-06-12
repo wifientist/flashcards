@@ -41,6 +41,15 @@ export default function DecksPage() {
     }
   };
 
+  const toggleFeatured = async (deck) => {
+    try {
+      await api.put(`/api/decks/${deck.deck_id}`, { featured: !deck.featured });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const deleteDeck = async (deckId) => {
     if (!window.confirm('Delete this deck? Its cards are kept but unfiled.')) return;
     try {
@@ -130,11 +139,28 @@ export default function DecksPage() {
           {decks.map((deck) => (
             <div key={deck.deck_id} className="border rounded p-4 flex justify-between items-start bg-white">
               <div>
-                <p className="font-semibold">{deck.name}</p>
+                <p className="font-semibold">
+                  {deck.name}
+                  {deck.featured && (
+                    <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded align-middle">
+                      ★ Featured
+                    </span>
+                  )}
+                </p>
                 {deck.description && <p className="text-sm text-gray-600">{deck.description}</p>}
                 <p className="text-xs text-gray-400 mt-1">{deck.card_count} cards</p>
               </div>
               <div className="flex flex-col items-end gap-1 text-sm">
+                {isAdmin && (
+                  <label className="flex items-center gap-1 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={!!deck.featured}
+                      onChange={() => toggleFeatured(deck)}
+                    />
+                    <span title="Show this deck's cards on the public landing">Featured</span>
+                  </label>
+                )}
                 {user && (
                   <div className="space-x-2">
                     <button onClick={() => exportCards(deck.deck_id, 'csv')} className="text-blue-600 hover:underline">Export CSV</button>

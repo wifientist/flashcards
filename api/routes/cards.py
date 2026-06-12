@@ -71,13 +71,22 @@ def create_card(card: CardCreate, db: Session = Depends(get_db),
 
 @router.get("/cards")
 def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
+              featured: bool = False,
               db: Session = Depends(get_db), payload=Depends(get_current_user)):
-    """List cards (public); includes the caller's per-card progress if authed."""
+    """List cards (public); includes the caller's per-card progress if authed.
+
+    `featured=true` returns only cards in featured decks — this powers the
+    public, unauthenticated landing.
+    """
     stmt = select(Card)
     if label:
         stmt = stmt.where(Card.labels.any(label))
     if deck_id:
         stmt = stmt.where(Card.deck_id == deck_id)
+    if featured:
+        stmt = stmt.where(
+            Card.deck_id.in_(select(Deck.id).where(Deck.featured.is_(True)))
+        )
     cards = list(db.scalars(stmt))
 
     authed = bool(payload and payload.get("authenticated"))
