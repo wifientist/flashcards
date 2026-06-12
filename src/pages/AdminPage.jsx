@@ -10,6 +10,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [error, setError] = useState('');
+  const [tab, setTab] = useState('users');
   const [newUser, setNewUser] = useState({ email: '', password: '', roles: ['user'] });
 
   // Audit: review a user's cards and copy them into a public deck.
@@ -148,6 +149,26 @@ export default function AdminPage() {
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
       {error && <div className="bg-red-100 text-red-800 text-sm p-2 rounded mb-4">{error}</div>}
 
+      <div className="flex flex-wrap gap-2 mb-6 text-sm">
+        {[
+          { key: 'users', label: `Users (${users.length})` },
+          { key: 'proposals', label: 'Proposed changes' },
+          { key: 'audit', label: 'Audit content' },
+          { key: 'sessions', label: `Sessions (${sessions.length})` },
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-1.5 rounded transition ${
+              tab === t.key ? 'bg-blue-600 text-white' : 'bg-white border hover:bg-gray-100'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'users' && (<>
       <form onSubmit={createUser} className="bg-white border rounded p-4 mb-6 space-y-3">
         <h2 className="font-semibold">Add a user</h2>
         <div className="flex flex-wrap gap-2">
@@ -246,7 +267,9 @@ export default function AdminPage() {
           </tbody>
         </table>
       </div>
+      </>)}
 
+      {tab === 'proposals' && (<>
       <h2 className="text-xl font-semibold mb-2">Proposed changes</h2>
       <div className="border rounded p-4 mb-8 bg-white">
         <div className="flex gap-2 mb-3 text-sm">
@@ -294,7 +317,9 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      </>)}
 
+      {tab === 'audit' && (<>
       <h2 className="text-xl font-semibold mb-2">Audit user content</h2>
       <div className="border rounded p-4 mb-8 bg-white space-y-3">
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -340,7 +365,10 @@ export default function AdminPage() {
           onCopied={() => loadAuditCards(auditUserId)}
         />
       )}
+      </>)}
 
+      {tab === 'sessions' && (
+      <>
       <h2 className="text-xl font-semibold mb-2">Active Sessions ({sessions.length})</h2>
       <div className="overflow-x-auto border rounded">
         <table className="w-full text-sm">
@@ -372,6 +400,7 @@ export default function AdminPage() {
           </tbody>
         </table>
       </div>
+      </>)}
     </div>
   );
 }
