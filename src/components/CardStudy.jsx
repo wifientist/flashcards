@@ -1,223 +1,143 @@
-import React, { useState, useEffect } from 'react';
-import { useSwipeable } from 'react-swipeable';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../api/client';
 
+// FSRS grades. Order mirrors the difficulty scale Again..Easy.
+const GRADES = [
+  { rating: 'again', label: 'Again', cls: 'bg-red-600 hover:bg-red-700' },
+  { rating: 'hard', label: 'Hard', cls: 'bg-orange-500 hover:bg-orange-600' },
+  { rating: 'good', label: 'Good', cls: 'bg-green-600 hover:bg-green-700' },
+  { rating: 'easy', label: 'Easy', cls: 'bg-blue-600 hover:bg-blue-700' },
+];
+
 export default function CardStudy() {
-  const [cards, setCards] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [queue, setQueue] = useState([]);
+  const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [swipeDirection, setSwipeDirection] = useState('');
-  const [editNote, setEditNote] = useState('');
-  const [editStatus, setEditStatus] = useState('');
-  const [showEdit, setShowEdit] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [reviewed, setReviewed] = useState(0);
 
-
-  useEffect(() => {
-    const fetchCards = async () => {
-      try {
-        const data = await api.get('/api/cards');
-        setCards(data.cards);
-      } catch (err) {
-        console.error(err);
-        alert('Error fetching cards');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCards();
+  const loadQueue = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.get('/api/study/queue');
+      setQueue(data.queue || []);
+      setIndex(0);
+      setFlipped(false);
+      setReviewed(0);
+    } catch (err) {
+      console.error(err);
+      alert('Error loading study queue');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (!cards.length) return;
-    const progress = cards[currentIndex]?.user_progress || {};
-    setEditNote(progress.notes || '');
-    setEditStatus(progress.status || 'new');
-    setShowEdit(false);
-  }, [currentIndex, cards]);
+    loadQueue();
+  }, [loadQueue]);
 
-  const handleNext = () => {
-    if (cards.length === 0 || isAnimating) return;
-    
-    setIsAnimating(true);
-    setSwipeDirection('left');
-    
-    setTimeout(() => {
-      if (flipped) setFlipped(false);
-      setCurrentIndex((prev) => (prev + 1) % cards.length);
-      setSwipeDirection('');
-      setIsAnimating(false);
-    }, 400);
+  const current = queue[index];
+
+  const grade = async (rating) => {
+    if (!current || submitting) return;
+    setSubmitting(true);
+    try {
+      await api.post(`/api/cards/${current.card_id}/review`, { rating });
+      setReviewed((n) => n + 1);
+      setFlipped(false);
+      setIndex((i) => i + 1);
+    } catch (err) {
+      console.error(err);
+      alert('Error saving review');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handlePrev = () => {
-    if (cards.length === 0 || isAnimating) return;
-    
-    setIsAnimating(true);
-    setSwipeDirection('right');
-    
-    setTimeout(() => {
-      if (flipped) setFlipped(false);
-      setCurrentIndex((prev) => (prev - 1 + cards.length) % cards.length);
-      setSwipeDirection('');
-      setIsAnimating(false);
-    }, 400);
-  };
+  if (loading) return <p className="text-center mt-8">Loading study queue…</p>;
 
-  const handlers = useSwipeable({
-    onSwipedLeft: () => handlePrev(),
-    onSwipedRight: () => handleNext(),
-    trackMouse: true,
-  });
+  // Queue exhausted (or empty to begin with).
+  if (!current) {
+    return (
+      <div className="text-center mt-16 space-y-4">
+        <p className="text-2xl">🎉 All caught up!</p>
+        <p className="text-gray-600">
+          {reviewed > 0
+            ? `You reviewed ${reviewed} card${reviewed === 1 ? '' : 's'}.`
+            : 'Nothing is due right now.'}
+        </p>
+        <button
+          onClick={loadQueue}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Check again
+        </button>
+      </div>
+    );
+  }
 
-  if (loading) return <p className="text-center mt-8">Loading cards...</p>;
-
-  if (cards.length === 0) return <p className="text-center mt-8">No cards available.</p>;
-
-  const currentCard = cards[currentIndex];
-  const progress = currentCard.user_progress || {};
-  const status = progress.status || "new";
-  const reviewCount = progress.review_count || 0;
-  const lastReviewed = progress.last_reviewed
-    ? new Date(progress.last_reviewed).toLocaleDateString()
-    : "Never";
-  const note = progress.notes || "";
+  const remaining = queue.length - index;
 
   return (
-    <div {...handlers} className="flex flex-col" style={{ height: 'calc(100vh - 5rem)' }}>
-      {/* Flip Card Container - 80% of available height */}
-      <div className="h-5/6 perspective px-4 pt-4 flex items-center justify-center overflow-hidden">
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 5rem)' }}>
+      <div className="text-center text-sm text-gray-500 pt-2">
+        {remaining} left · {reviewed} done
+      </div>
+
+      {/* Flip card */}
+      <div className="flex-1 perspective px-4 pt-2 flex items-center justify-center overflow-hidden">
         <div
-          onClick={() => !isAnimating && setFlipped(!flipped)}
-          className={`relative w-full h-full max-w-2xl mx-auto transition-all duration-500 transform cursor-pointer
-            ${flipped && !isAnimating ? 'rotate-y-180' : ''}
-            ${swipeDirection === 'left' ? 'translate-x-full rotate-12 opacity-0' : ''}
-            ${swipeDirection === 'right' ? '-translate-x-full -rotate-12 opacity-0' : ''}
-            ${isAnimating ? 'ease-out' : 'ease-in-out'}
-          `}
-          style={{ 
-            transformStyle: 'preserve-3d'
-          }}
+          onClick={() => setFlipped((f) => !f)}
+          className={`relative w-full h-full max-w-2xl mx-auto transition-transform duration-500 cursor-pointer
+            ${flipped ? 'rotate-y-180' : ''}`}
+          style={{ transformStyle: 'preserve-3d' }}
         >
-          {/* Front Face */}
-          <div className="absolute w-full h-full bg-white border rounded-lg shadow-lg flex items-center justify-center text-2xl text-center p-6" 
-               style={{ backfaceVisibility: 'hidden' }}>
-            <div>{currentCard.front}</div>
-            <div className="absolute top-2 left-2 bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-1 rounded shadow">
-              {status.toUpperCase()} • {reviewCount} 🔁 • {lastReviewed}
+          {/* Front */}
+          <div
+            className="absolute w-full h-full bg-white border rounded-lg shadow-lg flex items-center justify-center text-2xl text-center p-6"
+            style={{ backfaceVisibility: 'hidden' }}
+          >
+            <div>{current.front}</div>
+            <div className="absolute top-2 left-2 text-xs text-gray-400">
+              {(current.user_progress?.status || 'new').toUpperCase()}
             </div>
           </div>
-  
-          {/* Back Face */}
-          <div className="absolute w-full h-full bg-white border rounded-lg shadow-lg flex items-center justify-center text-2xl text-center p-6 transform rotate-y-180" 
-               style={{ backfaceVisibility: 'hidden' }}>
-            <div>
-              <div>{currentCard.back}</div>
-              {note && (
-                <div className="mt-4 text-sm text-gray-500 border-t pt-2">
-                  <strong>Note:</strong> {note}
-                </div>
-              )}
-              {showEdit ? (
-                <div className="mt-4 text-left w-full text-sm">
-                  <label className="block mb-1 font-semibold">Status</label>
-                  <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
-                    className="w-full border rounded p-1 mb-2"
-                  >
-                    <option value="new">New</option>
-                    <option value="learning">Learning</option>
-                    <option value="review">Review</option>
-                    <option value="mastered">Mastered</option>
-                    <option value="difficult">Difficult</option>
-                  </select>
 
-                  <label className="block mb-1 font-semibold">Note</label>
-                  <textarea
-                    value={editNote}
-                    onChange={(e) => setEditNote(e.target.value)}
-                    rows={3}
-                    className="w-full border rounded p-1"
-                  />
-
-                  <div className="flex justify-end mt-2 space-x-2">
-                    <button
-                      className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-                      onClick={() => setShowEdit(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                      onClick={async () => {
-                        const cardId = cards[currentIndex].card_id;
-                        try {
-                          await api.put(`/api/cards/${cardId}/progress`, {
-                            notes: editNote,
-                            status: editStatus,
-                          });
-                          // Reflect the saved status/notes locally without a refetch.
-                          setCards((prev) =>
-                            prev.map((c, i) =>
-                              i === currentIndex
-                                ? {
-                                    ...c,
-                                    user_progress: {
-                                      ...(c.user_progress || {}),
-                                      notes: editNote,
-                                      status: editStatus,
-                                    },
-                                  }
-                                : c
-                            )
-                          );
-                          alert('Progress saved!');
-                          setShowEdit(false);
-                        } catch (err) {
-                          console.error(err);
-                          alert('Error saving progress');
-                        }
-                      }}
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowEdit(true)}
-                  className="absolute bottom-4 right-4 text-xs text-blue-600 underline"
-                >
-                  ✏️ Edit Progress
-                </button>
-              )}
-
-            </div>
+          {/* Back */}
+          <div
+            className="absolute w-full h-full bg-white border rounded-lg shadow-lg flex items-center justify-center text-2xl text-center p-6 rotate-y-180"
+            style={{ backfaceVisibility: 'hidden' }}
+          >
+            <div>{current.back}</div>
           </div>
         </div>
       </div>
-  
-      {/* Navigation Arrows - 20% of screen height */}
-      <div className="h-1/6 flex items-center justify-center px-4">
-        <div className="flex justify-between w-full max-w-xs space-x-8">
+
+      {/* Controls */}
+      <div className="px-4 pb-6 pt-2">
+        {!flipped ? (
           <button
-            onClick={handlePrev}
-            className="px-4 py-2 border rounded hover:bg-gray-100 transition bg-white"
+            onClick={() => setFlipped(true)}
+            className="w-full max-w-2xl mx-auto block px-4 py-3 border rounded hover:bg-gray-100 transition bg-white"
           >
-            ⬅️ Prev
+            Show answer
           </button>
-          <button
-            onClick={handleNext}
-            className="px-4 py-2 border rounded hover:bg-gray-100 transition bg-white"
-          >
-            Next ➡️
-          </button>
-        </div>
+        ) : (
+          <div className="max-w-2xl mx-auto grid grid-cols-4 gap-2">
+            {GRADES.map((g) => (
+              <button
+                key={g.rating}
+                disabled={submitting}
+                onClick={() => grade(g.rating)}
+                className={`px-2 py-3 text-white rounded transition disabled:opacity-50 ${g.cls}`}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
-
 }

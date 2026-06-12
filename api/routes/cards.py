@@ -21,12 +21,14 @@ def _iso(dt):
 
 def _serialize_progress(p: Optional[Progress]) -> dict:
     if not p:
-        return {"notes": "", "status": "new", "last_reviewed": None, "review_count": 0}
+        return {"notes": "", "status": "new", "last_reviewed": None,
+                "review_count": 0, "due": None}
     return {
         "notes": p.notes or "",
         "status": p.status or "new",
         "last_reviewed": _iso(p.last_reviewed),
         "review_count": p.review_count or 0,
+        "due": _iso(p.due),
     }
 
 

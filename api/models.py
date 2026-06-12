@@ -20,8 +20,12 @@ class ProgressStatus(str, Enum):
     NEW = "new"
     LEARNING = "learning"
     REVIEW = "review"
+    RELEARNING = "relearning"
     MASTERED = "mastered"
     DIFFICULT = "difficult"
+
+class ReviewRequest(BaseModel):
+    rating: str  # one of: again | hard | good | easy
 
 class ProgressUpdate(BaseModel):
     notes: Optional[str] = None
