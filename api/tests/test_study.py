@@ -27,15 +27,25 @@ def test_review_requires_auth(client, make_card):
     assert client.post(f"/cards/{cid}/review", json={"rating": "good"}).status_code == 401
 
 
-def test_summary_includes_starred_and_due(user, make_card):
+def test_summary_includes_totals_starred_due(user, make_card):
     cid = make_card()
+    make_card()  # an untouched card -> counts as "new" in the breakdown
     user.put(f"/cards/{cid}/progress", json={"flagged": True})
     user.post(f"/cards/{cid}/review", json={"rating": "good"})
     s = user.get("/my-progress/summary").json()
     assert s["starred"] == 1
     assert s["total_reviews"] == 1
     assert s["total_cards_studied"] == 1
-    assert "due_now" in s and "status_breakdown" in s
+    assert s["total_cards"] == 2
+    assert s["status_breakdown"]["new"] == 1  # the untouched card folded in
+    assert "due_now" in s
+
+
+def test_due_only_skips_new_backfill(user, make_card):
+    make_card()
+    make_card()
+    assert user.get("/study/queue").json()["count"] >= 1   # backfills new
+    assert user.get("/study/queue?due_only=1").json()["count"] == 0  # no due, no backfill
 
 
 def test_flag_and_marked_list(user, make_card):

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import FlipCard from './FlipCard';
@@ -13,6 +14,8 @@ const GRADES = [
 
 export default function ReviewMode({ deckId }) {
   const { notify } = useToast();
+  const [searchParams] = useSearchParams();
+  const dueOnly = searchParams.get('due') === '1';
   const [queue, setQueue] = useState([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -24,8 +27,11 @@ export default function ReviewMode({ deckId }) {
   const loadQueue = useCallback(async () => {
     setLoading(true);
     try {
-      const qs = deckId ? `?deck_id=${encodeURIComponent(deckId)}` : '';
-      const data = await api.get(`/api/study/queue${qs}`);
+      const params = new URLSearchParams();
+      if (deckId) params.set('deck_id', deckId);
+      if (dueOnly) params.set('due_only', '1');
+      const qs = params.toString();
+      const data = await api.get(`/api/study/queue${qs ? `?${qs}` : ''}`);
       setQueue(data.queue || []);
       setIndex(0);
       setFlipped(false);
@@ -36,7 +42,7 @@ export default function ReviewMode({ deckId }) {
     } finally {
       setLoading(false);
     }
-  }, [deckId, notify]);
+  }, [deckId, dueOnly, notify]);
 
   useEffect(() => {
     loadQueue();
@@ -86,7 +92,9 @@ export default function ReviewMode({ deckId }) {
         <p className="text-gray-600">
           {reviewed > 0
             ? `You reviewed ${reviewed} card${reviewed === 1 ? '' : 's'}.`
-            : 'Nothing is due right now.'}
+            : dueOnly
+              ? 'Nothing is due right now.'
+              : 'No cards to study right now.'}
         </p>
         <button onClick={loadQueue} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
           Check again
@@ -100,7 +108,7 @@ export default function ReviewMode({ deckId }) {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-center gap-3 text-sm text-gray-500 pt-2">
-        <span>{remaining} left · {reviewed} done</span>
+        <span>{dueOnly && <span className="text-green-600 font-medium">Due · </span>}{remaining} left · {reviewed} done</span>
         <button
           onClick={toggleFlag}
           title={current.user_progress?.flagged ? 'Unstar' : 'Star this card'}
