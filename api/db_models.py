@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import (
     Column, String, Text, Integer, Boolean, DateTime, ForeignKey,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -67,6 +67,11 @@ class Progress(Base):
     status = Column(String, nullable=False, default="new")
     last_reviewed = Column(DateTime, nullable=True)
     review_count = Column(Integer, nullable=False, default=0)
+
+    # FSRS scheduling state. `due` is denormalized out of `fsrs_card` for fast
+    # "what's due now" queries; `fsrs_card` is the serialized FSRS Card.
+    due = Column(DateTime(timezone=True), nullable=True, index=True)
+    fsrs_card = Column(JSONB, nullable=True)
 
     user = relationship("User", back_populates="progress")
     card = relationship("Card", back_populates="progress")
