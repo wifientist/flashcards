@@ -4,9 +4,10 @@ import BrowseMode from './study/BrowseMode';
 import DeckMultiSelect from './study/DeckMultiSelect';
 import { useStudyDecks } from '../hooks/useStudyDecks';
 
-// Study section: the FSRS-prioritized queue, or your starred (Marked) cards.
-// (Casual flipping lives on the top-level FlipOnly page.) Deck scope is shared
-// and persisted server-side per user.
+// Study section. Three modes over the same persistent deck scope:
+//   Study  — the FSRS-prioritized review queue (grading)
+//   Flip   — casual swipe-and-flip, no grading
+//   Marked — your starred cards
 export default function StudyPage() {
   const [mode, setMode] = useState('study');
   const { decks, selectedDeckIds, updateDecks } = useStudyDecks();
@@ -27,12 +28,14 @@ export default function StudyPage() {
       <div className="flex items-center justify-center gap-3 px-4 pt-3">
         <div className="flex gap-2">
           {tab('study', 'Study')}
+          {tab('flip', 'Flip')}
           {tab('marked', '★ Marked')}
         </div>
         <DeckMultiSelect decks={decks} selected={selectedDeckIds} onChange={updateDecks} />
       </div>
 
       {mode === 'study' && <ReviewMode deckIds={selectedDeckIds} />}
+      {mode === 'flip' && <BrowseMode deckIds={selectedDeckIds} />}
       {mode === 'marked' && <BrowseMode marked deckIds={selectedDeckIds} />}
     </div>
   );

@@ -1,34 +1,21 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useStudyDecks } from '../hooks/useStudyDecks';
 import BrowseMode from '../components/study/BrowseMode';
-import DeckMultiSelect from '../components/study/DeckMultiSelect';
 
-// FlipOnly landing: swipe through cards, tap to flip, no grading.
-//   - logged out: featured-deck cards (the public landing)
-//   - logged in: your cards, scoped to the same persistent deck selection
+// Public landing: logged-out visitors swipe through the featured deck and are
+// nudged to log in. Logged-in users study (Flip is now a mode on the Study page).
 export default function FlipPage() {
   const { user } = useAuth();
-  const { decks, selectedDeckIds, updateDecks } = useStudyDecks(!!user);
 
-  if (!user) {
-    return (
-      <div className="flex flex-col" style={{ height: 'calc(100vh - 5rem)' }}>
-        <p className="text-center text-xs text-gray-500 pt-2">
-          Swipe through the cards · <Link to="/login" className="text-blue-600 hover:underline">log in</Link> to study with spaced repetition
-        </p>
-        <BrowseMode featured />
-      </div>
-    );
-  }
+  if (user) return <Navigate to="/study" replace />;
 
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 5rem)' }}>
-      <div className="flex justify-center pt-3">
-        <DeckMultiSelect decks={decks} selected={selectedDeckIds} onChange={updateDecks} />
-      </div>
-      <BrowseMode deckIds={selectedDeckIds} />
+      <p className="text-center text-xs text-gray-500 pt-2">
+        Swipe through the cards · <Link to="/login" className="text-blue-600 hover:underline">log in</Link> to study with spaced repetition
+      </p>
+      <BrowseMode featured />
     </div>
   );
 }

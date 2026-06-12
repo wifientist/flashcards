@@ -26,18 +26,15 @@ export default function Navbar() {
         <Link to="/" className="text-lg font-bold" onClick={() => setMenuOpen(false)}>Flashcards</Link>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex space-x-4 items-center">
-          <NavLink to="/">FlipOnly</NavLink>
+        <div className="hidden md:flex space-x-3 items-center">
           {user && <NavLink to="/study">Study</NavLink>}
-          <span className="h-5 w-px bg-gray-300" aria-hidden="true" />
-          <NavLink to="/cards">Cards</NavLink>
-          <NavLink to="/decks">Decks</NavLink>
-          {user && <NavLink to="/dashboard">Dashboard</NavLink>}
-          {user && <NavLink to="/proposals">My Proposals</NavLink>}
+          <NavLink to="/manage">Manage</NavLink>
+          {user && <NavLink to="/profile">Profile</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
           {!user && <NavLink to="/login">Login</NavLink>}
           {user && (
             <>
+              <span className="h-5 w-px bg-gray-300" aria-hidden="true" />
               <span className="text-sm text-gray-600">Hi, {user.email}</span>
               <LogoutButton />
             </>
@@ -63,13 +60,9 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {menuOpen && (
         <div className="md:hidden bg-white border-t p-4 space-y-2">
-          <NavLink to="/">FlipOnly</NavLink>
           {user && <NavLink to="/study">Study</NavLink>}
-          <hr className="my-1" />
-          <NavLink to="/cards">Cards</NavLink>
-          <NavLink to="/decks">Decks</NavLink>
-          {user && <NavLink to="/dashboard">Dashboard</NavLink>}
-          {user && <NavLink to="/proposals">My Proposals</NavLink>}
+          <NavLink to="/manage">Manage</NavLink>
+          {user && <NavLink to="/profile">Profile</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
           {!user && <NavLink to="/login">Login</NavLink>}
           {user && (

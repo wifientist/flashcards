@@ -27,10 +27,11 @@ describe('Navbar', () => {
   it('shows brand, public links, and Login when logged out', async () => {
     renderNavbar();
     expect(await screen.findByText('Flashcards')).toBeInTheDocument();
-    expect(screen.getByText('Decks')).toBeInTheDocument();
+    expect(screen.getAllByText('Manage').length).toBeGreaterThan(0);
     // Login shown to guests; authed-only links hidden
     expect(screen.getAllByText('Login').length).toBeGreaterThan(0);
     expect(screen.queryByText('Study')).not.toBeInTheDocument();
+    expect(screen.queryByText('Profile')).not.toBeInTheDocument();
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
   });
 });
