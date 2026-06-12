@@ -83,10 +83,9 @@ def admin():
 
 @pytest.fixture
 def user():
-    """A logged-in regular user client (own cookie jar), created via the API."""
+    """A logged-in regular user client (own cookie jar)."""
+    _create_user("user@test.com", "userpw123", roles=["user"])
     c = TestClient(main.app)
-    reg = c.post("/auth/register", json={"email": "user@test.com", "password": "userpw123"})
-    assert reg.status_code == 200, reg.text
     resp = c.post("/auth/login", json={"email": "user@test.com", "password": "userpw123"})
     assert resp.status_code == 200, resp.text
     return c
