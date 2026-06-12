@@ -46,12 +46,15 @@ export default function DashboardPage() {
       <h1 className="text-2xl font-bold mb-1">Your Dashboard</h1>
       <p className="text-sm text-gray-500 mb-4">{summary.total_reviews} reviews logged all-time</p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
         <Tile label="Total cards" value={total} />
-        <Tile label="Studied" value={summary.total_cards_studied} />
-        <Tile label="Due now" value={summary.due_now} accent={summary.due_now > 0 ? 'text-green-600' : 'text-gray-400'} />
+        <Tile label="New to learn" value={breakdown.new || 0} accent="text-gray-500" />
+        <Tile label="Due to review" value={summary.due_now} accent={summary.due_now > 0 ? 'text-green-600' : 'text-gray-400'} />
         <Tile label="Starred" value={summary.starred} accent="text-amber-500" />
       </div>
+      <p className="text-xs text-gray-400 mb-6">
+        Study shows new cards first, then due reviews.
+      </p>
 
       <Link
         to="/study"
