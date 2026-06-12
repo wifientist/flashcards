@@ -13,14 +13,19 @@ send_slack_message() {
     # curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"$MESSAGE\"}" "$SLACK_WEBHOOK_URL" >/dev/null 2>&1 &
 }
 
+# Pass --force (or -f, or FORCE_DEPLOY=1) to deploy even when git has no new
+# commits — useful for re-running migrations/build after manual changes.
+FORCE=0
+[[ "$1" == "--force" || "$1" == "-f" || "$FORCE_DEPLOY" == "1" ]] && FORCE=1
+
 send_slack_message "🚀 *Deployment started!* Pulling latest changes..."
 
 cd /home/omni/flashcards || { send_slack_message "❌ Deployment failed! Could not find project directory."; exit 1; }
 
 # Pull latest changes
 GIT_OUTPUT=$(git pull origin main)
-if [[ "$GIT_OUTPUT" == *"Already up to date."* ]]; then
-    send_slack_message "😴 *No changes detected!* Deployment skipped."
+if [[ "$GIT_OUTPUT" == *"Already up to date."* && "$FORCE" -ne 1 ]]; then
+    send_slack_message "😴 *No changes detected!* Deployment skipped. (run with --force to deploy anyway)"
     exit 0
 fi
 
