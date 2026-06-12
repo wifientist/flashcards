@@ -8,7 +8,7 @@ from database import get_db
 from db_models import Deck, Card
 from models import DeckCreate, DeckUpdate
 from roles import require_roles, get_current_user
-from routes.cards import _is_admin
+from routes.cards import _is_admin, _default_deck_id
 
 router = APIRouter()
 
@@ -38,6 +38,13 @@ def _visible_decks_stmt(stmt, payload):
 @router.get("/decks")
 def list_decks(db: Session = Depends(get_db), payload=Depends(get_current_user)):
     """Decks the caller may see (public + their own), with card counts."""
+    # Ensure card-creators always have their "My Cards" deck (shown even at 0 cards).
+    if payload and payload.get("authenticated") and (
+        set(payload.get("roles", [])) & {"trusted", "admin"}
+    ):
+        _default_deck_id(db, payload["user_id"])
+        db.commit()
+
     counts = dict(
         db.execute(
             select(Card.deck_id, func.count())

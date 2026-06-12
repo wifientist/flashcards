@@ -7,6 +7,12 @@ def test_non_admin_cannot_create_deck(user, trusted):
     assert trusted.post("/decks", json={"name": "x"}).status_code == 403  # decks are admin-only now
 
 
+def test_my_cards_deck_shown_even_with_no_cards(trusted):
+    mine = [d for d in trusted.get("/decks").json()["decks"] if d["owner_id"]]
+    assert len(mine) == 1
+    assert mine[0]["name"] == "My Cards" and mine[0]["card_count"] == 0
+
+
 def test_admin_creates_public_deck(admin):
     r = admin.post("/decks", json={"name": "Public"})
     assert r.status_code == 200

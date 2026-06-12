@@ -4,10 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TagInput from './TagInput';
 
-export default function CardAdder({ onCreated } = {}) {
+export default function CardAdder({ onCreated, deck } = {}) {
   const { user } = useAuth();
   const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');
+  // Targeted mode: adding directly into a specific deck (from the Decks page).
+  const targeted = !!deck;
+  const targetPrivate = targeted && !!deck.owner_id;
 
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
@@ -31,13 +34,10 @@ export default function CardAdder({ onCreated } = {}) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/api/cards', {
-        front,
-        back,
-        labels,
-        deck_id: asPublic ? (deckId || null) : null,
-        private: isAdmin ? makePrivate : true,
-      });
+      const body = targeted
+        ? { front, back, labels, private: targetPrivate, deck_id: targetPrivate ? null : deck.deck_id }
+        : { front, back, labels, deck_id: asPublic ? (deckId || null) : null, private: isAdmin ? makePrivate : true };
+      await api.post('/api/cards', body);
       notify('Card created!', 'success');
       setFront('');
       setBack('');
@@ -52,17 +52,19 @@ export default function CardAdder({ onCreated } = {}) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-lg space-y-4"
+      className={`bg-white space-y-4 ${targeted ? 'p-6' : 'max-w-md mx-auto mt-8 p-6 rounded-lg shadow-lg'}`}
     >
-      <h2 className="text-2xl font-bold text-center mb-4">Create a New Flashcard</h2>
+      <h2 className="text-2xl font-bold text-center mb-4">
+        {targeted ? `Add a card to ${deck.name}` : 'Create a New Flashcard'}
+      </h2>
 
-      {!isAdmin && (
+      {!targeted && !isAdmin && (
         <p className="text-sm bg-blue-50 text-blue-800 p-2 rounded">
-          🔒 This card will be private to you. You can find it under <strong>View → My cards</strong>.
+          🔒 This card will be private to you. Find it under <strong>Cards</strong> → the <strong>“My Cards”</strong> deck filter.
         </p>
       )}
 
-      {isAdmin && (
+      {!targeted && isAdmin && (
         <div>
           <label className="block text-gray-700 mb-1">Card type:</label>
           <div className="flex gap-4 text-sm">
@@ -105,7 +107,7 @@ export default function CardAdder({ onCreated } = {}) {
         <TagInput tags={labels} onChange={setLabels} suggestions={labelSuggestions} />
       </div>
 
-      {asPublic && (
+      {!targeted && asPublic && (
         <div>
           <label className="block text-gray-700 mb-1">Deck:</label>
           <select
