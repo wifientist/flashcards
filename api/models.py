@@ -26,6 +26,9 @@ class ProgressStatus(str, Enum):
 class ProgressUpdate(BaseModel):
     notes: Optional[str] = None
     status: Optional[ProgressStatus] = None
+    # True only for an actual review event (study flow); editing notes/status
+    # alone must NOT inflate review_count/last_reviewed.
+    reviewed: bool = False
 
 class UserProgress(BaseModel):
     card_id: str
@@ -47,16 +50,6 @@ class Label(BaseModel):
     label: str
     card_count: int
 
-# class AuthRequest(BaseModel):
-#     password: str
-
-# class SessionInfo(BaseModel):
-#     session_id: Optional[str] = None
-#     roles: List[str] = ["guest"]
-#     authenticated: bool = False
-#     message: Optional[str] = None
-
-# New user-based authentication models
 class UserCreate(BaseModel):
     email: EmailStr
     password: str

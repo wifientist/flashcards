@@ -125,9 +125,9 @@ def update_card(card_id: str, card_update: CardUpdate, payload=Depends(require_r
     if not r1.exists(card_key):
         raise HTTPException(status_code=404, detail="Card not found")
     
-    if card_update.front:
+    if card_update.front is not None:
         r1.hset(card_key, "front", card_update.front)
-    if card_update.back:
+    if card_update.back is not None:
         r1.hset(card_key, "back", card_update.back)
     if card_update.labels is not None:
         # Remove old labels
@@ -191,16 +191,19 @@ def update_card_progress(card_id: str, progress_update: ProgressUpdate, payload=
         updates["notes"] = progress_update.notes
     if progress_update.status is not None:
         updates["status"] = progress_update.status.value
-    
-    # Always update last_reviewed and increment review_count
-    updates["last_reviewed"] = datetime.utcnow().isoformat()
-    
-    # Get current review count and increment
-    current_count = r1.hget(progress_key, "review_count") or "0"
-    updates["review_count"] = str(int(current_count) + 1)
-    
+
+    # Only count this as a review when explicitly flagged by the study flow.
+    # Plain note/status edits must not inflate review stats.
+    if progress_update.reviewed:
+        updates["last_reviewed"] = datetime.utcnow().isoformat()
+        current_count = r1.hget(progress_key, "review_count") or "0"
+        updates["review_count"] = str(int(current_count) + 1)
+
+    if not updates:
+        return {"message": "No changes"}
+
     r1.hset(progress_key, mapping=updates)
-    
+
     return {"message": "Progress updated"}
 
 @router.get("/my-progress")

@@ -1,21 +1,14 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-export default function LogoutButton({ onLogout }) {
+export default function LogoutButton() {
   const navigate = useNavigate();
-  const handleLogout = async () => {
-    const res = await fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include',
-    });
+  const { logout } = useAuth();
 
-    if (res.ok) {
-      alert('Logged out successfully.');
-      if (onLogout) onLogout(); // Optional callback to update parent state
-      navigate('/');
-    } else {
-      alert('Logout failed.');
-    }
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
   };
 
   return (

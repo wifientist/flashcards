@@ -1,5 +1,3 @@
-//import React from 'react'
-import { useState } from 'react'
 import './App.css'
 
 import UserLogin from './components/UserLogin';
@@ -14,8 +12,6 @@ import CardStudy from './components/CardStudy';
 import AdminPage from './pages/AdminPage';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
     <>
       <Navbar />

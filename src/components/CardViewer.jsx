@@ -1,5 +1,6 @@
 import React from 'react';
 import { useEffect, useState } from 'react';
+import { api } from '../api/client';
 
 export default function CardViewer() {
   const [cards, setCards] = useState([]);
@@ -11,11 +12,8 @@ export default function CardViewer() {
     const fetchCards = async () => {
       try {
         const url = filter ? `/api/cards?label=${encodeURIComponent(filter)}` : '/api/cards';
-        const response = await fetch(url, { credentials: 'include' });
-        if (!response.ok) throw new Error('Failed to fetch cards');
-        const data = await response.json();
+        const data = await api.get(url);
         setCards(data.cards);
-        console.log(data.cards);
       } catch (err) {
         console.error(err);
         alert('Error fetching cards');

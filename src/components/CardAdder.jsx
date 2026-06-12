@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { api } from '../api/client';
 
 export default function CardAdder() {
   const [front, setFront] = useState('');
@@ -11,22 +12,11 @@ export default function CardAdder() {
     const labelArray = labels.split(',').map(label => label.trim()).filter(label => label);
 
     try {
-      const response = await fetch('/api/cards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ front, back, labels: labelArray }),
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        alert('Card created!');
-        setFront('');
-        setBack('');
-        setLabels('');
-      } else {
-        const error = await response.json();
-        alert('Error: ' + JSON.stringify(error.detail));
-      }
+      await api.post('/api/cards', { front, back, labels: labelArray });
+      alert('Card created!');
+      setFront('');
+      setBack('');
+      setLabels('');
     } catch (err) {
       alert('Error: ' + err.message);
     }

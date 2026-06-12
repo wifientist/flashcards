@@ -1,4 +1,4 @@
-from jose import jwt, JWTError
+import jwt
 from datetime import datetime, timedelta
 import bcrypt
 from config import JWT_SECRET_KEY, JWT_DECODE_ALGO
@@ -31,11 +31,8 @@ def verify_token(token):
         return None
     try:
         return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_DECODE_ALGO])
-    except jwt.ExpiredSignatureError:
-        return None
     except jwt.InvalidTokenError:
-        return None
-    except Exception:
+        # InvalidTokenError is the base class for expired/invalid/malformed tokens
         return None
 
 def hash_password(password: str) -> str:

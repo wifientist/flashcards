@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSwipeable } from 'react-swipeable';
+import { api } from '../api/client';
 
 export default function CardStudy() {
   const [cards, setCards] = useState([]);
@@ -16,11 +17,8 @@ export default function CardStudy() {
   useEffect(() => {
     const fetchCards = async () => {
       try {
-        const response = await fetch('/api/cards', { credentials: 'include' });
-        if (!response.ok) throw new Error('Failed to fetch cards');
-        const data = await response.json();
+        const data = await api.get('/api/cards');
         setCards(data.cards);
-        console.log(data.cards);
       } catch (err) {
         console.error(err);
         alert('Error fetching cards');
@@ -157,16 +155,25 @@ export default function CardStudy() {
                       onClick={async () => {
                         const cardId = cards[currentIndex].card_id;
                         try {
-                          const res = await fetch(`/api/cards/${cardId}/progress`, {
-                            method: 'PUT',
-                            credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              notes: editNote,
-                              status: editStatus,
-                            }),
+                          await api.put(`/api/cards/${cardId}/progress`, {
+                            notes: editNote,
+                            status: editStatus,
                           });
-                          if (!res.ok) throw new Error('Failed to update progress');
+                          // Reflect the saved status/notes locally without a refetch.
+                          setCards((prev) =>
+                            prev.map((c, i) =>
+                              i === currentIndex
+                                ? {
+                                    ...c,
+                                    user_progress: {
+                                      ...(c.user_progress || {}),
+                                      notes: editNote,
+                                      status: editStatus,
+                                    },
+                                  }
+                                : c
+                            )
+                          );
                           alert('Progress saved!');
                           setShowEdit(false);
                         } catch (err) {
