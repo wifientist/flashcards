@@ -8,9 +8,6 @@ export default function Navbar() {
   const location = useLocation();
   const { user } = useAuth();
 
-  // Only trusted users (and admins) may create cards.
-  const canCreate = user?.roles?.some((r) => r === 'admin' || r === 'trusted');
-
   const isActive = (path) => location.pathname === path ? 'bg-gray-200' : '';
 
   const NavLink = ({ to, children }) => (
@@ -32,10 +29,9 @@ export default function Navbar() {
         <div className="hidden md:flex space-x-4 items-center">
           <NavLink to="/">FlipOnly</NavLink>
           {user && <NavLink to="/study">Study</NavLink>}
-          <NavLink to="/view">Cards</NavLink>
           <span className="h-5 w-px bg-gray-300" aria-hidden="true" />
+          <NavLink to="/view">Cards</NavLink>
           <NavLink to="/decks">Decks</NavLink>
-          {canCreate && <NavLink to="/create">Create</NavLink>}
           {user && <NavLink to="/dashboard">Dashboard</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
           {!user && <NavLink to="/login">Login</NavLink>}
@@ -68,10 +64,9 @@ export default function Navbar() {
         <div className="md:hidden bg-white border-t p-4 space-y-2">
           <NavLink to="/">FlipOnly</NavLink>
           {user && <NavLink to="/study">Study</NavLink>}
-          <NavLink to="/view">Cards</NavLink>
           <hr className="my-1" />
+          <NavLink to="/view">Cards</NavLink>
           <NavLink to="/decks">Decks</NavLink>
-          {canCreate && <NavLink to="/create">Create</NavLink>}
           {user && <NavLink to="/dashboard">Dashboard</NavLink>}
           {user?.roles?.includes('admin') && <NavLink to="/admin">Admin</NavLink>}
           {!user && <NavLink to="/login">Login</NavLink>}

@@ -3,11 +3,14 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TagInput from './TagInput';
+import CardAdder from './CardAdder';
 
 export default function CardViewer() {
   const { user } = useAuth();
   const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');
+  const canCreate = user?.roles?.some((r) => r === 'admin' || r === 'trusted');
+  const [showCreate, setShowCreate] = useState(false);
 
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -113,6 +116,18 @@ export default function CardViewer() {
     <div className="p-4 max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold mb-4 text-center">All Flashcards</h2>
       {error && <div className="bg-red-100 text-red-800 text-sm p-2 rounded mb-4">{error}</div>}
+
+      {canCreate && (
+        <div className="mb-4 text-center">
+          <button
+            onClick={() => setShowCreate((s) => !s)}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            {showCreate ? '× Close' : '+ New card'}
+          </button>
+          {showCreate && <CardAdder onCreated={load} />}
+        </div>
+      )}
 
       <div className="mb-4 flex justify-center gap-2 flex-wrap">
         <input

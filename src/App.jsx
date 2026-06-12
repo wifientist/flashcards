@@ -5,7 +5,6 @@ import UserLogin from './components/UserLogin';
 import Navbar from './components/Navbar';
 import { Routes, Route, Link } from 'react-router-dom';
 
-import CardAdder from './components/CardAdder';
 import CardViewer from './components/CardViewer';
 import CardStudy from './components/CardStudy';
 
@@ -24,7 +23,6 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/view" element={<CardViewer />} />
         <Route path="/decks" element={<DecksPage />} />
-        <Route path="/create" element={<CardAdder />} />
         <Route path="/study" element={<CardStudy />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/admin" element={<AdminPage />} />

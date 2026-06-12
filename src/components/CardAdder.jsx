@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TagInput from './TagInput';
 
-export default function CardAdder() {
+export default function CardAdder({ onCreated } = {}) {
   const { user } = useAuth();
   const { notify } = useToast();
   const isAdmin = user?.roles?.includes('admin');
@@ -50,6 +50,7 @@ export default function CardAdder() {
       setBack('');
       setLabels([]);
       setDeckId('');
+      if (onCreated) onCreated();
     } catch (err) {
       notify('Error: ' + err.message, 'error');
     }
