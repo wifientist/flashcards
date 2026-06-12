@@ -79,6 +79,11 @@ def test_deactivate_blocks_login_then_reactivate(admin, client):
     assert client.post("/auth/login", json={"email": "victim@test.com", "password": "pw1234567"}).status_code == 200
 
 
+def test_admin_sessions_include_email(admin):
+    sessions = admin.get("/admin/sessions").json()["sessions"]
+    assert any(s.get("email") == "admin@test.com" for s in sessions)
+
+
 def test_admin_only_user_list(client, admin, user):
     assert client.get("/auth/users").status_code == 401      # unauthenticated
     assert user.get("/auth/users").status_code == 403        # regular user

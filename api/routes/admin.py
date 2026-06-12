@@ -16,6 +16,8 @@ def list_sessions(payload=Depends(require_roles(["admin"]))):
             data = r0.hgetall(key)
             sessions.append({
                 "session_id": session_id,
+                "email": data.get("email"),
+                "user_id": data.get("user_id"),
                 "authenticated": data.get("authenticated"),
                 "roles": data.get("roles", "").split(","),
                 "created_at": data.get("created_at")

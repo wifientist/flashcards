@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 
 // Ordered low → high knowledge (with the manual "difficult" flag last).
-const STATUS_ORDER = ['new', 'learning', 'relearning', 'review', 'mastered', 'difficult'];
+const STATUS_ORDER = ['new', 'learning', 'relearning', 'review', 'difficult', 'mastered'];
 
 const STATUS_COLORS = {
   new: 'bg-gray-400',

@@ -203,6 +203,7 @@ export default function AdminPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left">
             <tr>
+              <th className="p-2">User</th>
               <th className="p-2">Session</th>
               <th className="p-2">Roles</th>
               <th className="p-2">Created</th>
@@ -212,6 +213,7 @@ export default function AdminPage() {
           <tbody>
             {sessions.map((s) => (
               <tr key={s.session_id} className="border-t">
+                <td className="p-2">{s.email || '—'}</td>
                 <td className="p-2 font-mono text-xs">{s.session_id.slice(0, 8)}…</td>
                 <td className="p-2">{(s.roles || []).join(', ')}</td>
                 <td className="p-2 text-gray-500">
