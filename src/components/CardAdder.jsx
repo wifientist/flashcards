@@ -11,10 +11,15 @@ export default function CardAdder() {
   const [labels, setLabels] = useState('');
   const [deckId, setDeckId] = useState('');
   const [decks, setDecks] = useState([]);
+  // Admins choose: public app card vs their own private card.
+  const [makePrivate, setMakePrivate] = useState(false);
 
   useEffect(() => {
     if (isAdmin) api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
   }, [isAdmin]);
+
+  // A public deck only applies to a public card.
+  const asPublic = isAdmin && !makePrivate;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,7 +27,13 @@ export default function CardAdder() {
     const labelArray = labels.split(',').map(label => label.trim()).filter(label => label);
 
     try {
-      await api.post('/api/cards', { front, back, labels: labelArray, deck_id: deckId || null });
+      await api.post('/api/cards', {
+        front,
+        back,
+        labels: labelArray,
+        deck_id: asPublic ? (deckId || null) : null,
+        private: isAdmin ? makePrivate : true,
+      });
       alert('Card created!');
       setFront('');
       setBack('');
@@ -43,6 +54,22 @@ export default function CardAdder() {
         <p className="text-sm bg-blue-50 text-blue-800 p-2 rounded">
           🔒 This card will be private to you. You can find it under <strong>View → My cards</strong>.
         </p>
+      )}
+
+      {isAdmin && (
+        <div>
+          <label className="block text-gray-700 mb-1">Card type:</label>
+          <div className="flex gap-4 text-sm">
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input type="radio" checked={!makePrivate} onChange={() => setMakePrivate(false)} />
+              <span>Public (app card)</span>
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input type="radio" checked={makePrivate} onChange={() => setMakePrivate(true)} />
+              <span>🔒 Private (my card)</span>
+            </label>
+          </div>
+        </div>
       )}
 
       <div>
@@ -77,7 +104,7 @@ export default function CardAdder() {
         />
       </div>
 
-      {isAdmin && (
+      {asPublic && (
         <div>
           <label className="block text-gray-700 mb-1">Deck:</label>
           <select
