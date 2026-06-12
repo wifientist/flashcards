@@ -29,8 +29,9 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
                 db: Session = Depends(get_db),
                 payload=Depends(require_authenticated)):
     """The caller's study queue, ordered new-first then by FSRS priority:
-      1. NEW cards (never seen), shuffled — they always jump the line.
-      2. then DUE cards (scheduled, due now), most-overdue first.
+      1. up to `limit` NEW cards (never seen), shuffled — they jump the line.
+      2. then ALL DUE cards (scheduled, due now), most-overdue first — so reviews
+         never starve behind a backlog of new cards.
     Spans the given decks (comma-separated deck_ids, or single deck_id; omit for all)."""
     user_id = payload["user_id"]
     now = scheduler.now_utc()
@@ -38,7 +39,7 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
 
     queue = []
 
-    # 1) New cards (no progress yet), shuffled — these go first.
+    # 1) New cards (no progress yet), shuffled — these go first, capped at `limit`.
     tracked = set(db.scalars(
         select(Progress.card_id).where(Progress.user_id == user_id)
     ))
@@ -49,39 +50,34 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
         new_stmt = new_stmt.where(Card.deck_id.in_(decks))
     if tracked:
         new_stmt = new_stmt.where(Card.id.not_in(tracked))
-    new_stmt = new_stmt.order_by(func.random())
+    new_stmt = new_stmt.order_by(func.random()).limit(limit)
     new_count = 0
     for card in db.scalars(new_stmt):
         queue.append(_serialize_card(card, None, include_progress=True))
         new_count += 1
-        if len(queue) >= limit:
-            break
 
-    # 2) Due cards (scheduled and due now), most-overdue first.
+    # 2) Due cards (scheduled and due now), most-overdue first — always appended.
+    due_stmt = (
+        select(Progress)
+        .join(Card, Card.id == Progress.card_id)
+        .where(Progress.user_id == user_id,
+               Progress.due.is_not(None),
+               Progress.due <= now)
+        .order_by(Progress.due.asc())
+    )
+    if decks is not None:
+        due_stmt = due_stmt.where(Card.deck_id.in_(decks))
+    due_progress = list(db.scalars(due_stmt))
     due_count = 0
-    if len(queue) < limit:
-        due_stmt = (
-            select(Progress)
-            .join(Card, Card.id == Progress.card_id)
-            .where(Progress.user_id == user_id,
-                   Progress.due.is_not(None),
-                   Progress.due <= now)
-            .order_by(Progress.due.asc())
-        )
-        if decks is not None:
-            due_stmt = due_stmt.where(Card.deck_id.in_(decks))
-        due_progress = list(db.scalars(due_stmt))
-        if due_progress:
-            ids = [p.card_id for p in due_progress]
-            cards_by_id = {c.id: c for c in db.scalars(select(Card).where(Card.id.in_(ids)))}
-            pbc = {p.card_id: p for p in due_progress}
-            for cid in ids:
-                card = cards_by_id.get(cid)
-                if card:
-                    queue.append(_serialize_card(card, pbc[cid], include_progress=True))
-                    due_count += 1
-                if len(queue) >= limit:
-                    break
+    if due_progress:
+        ids = [p.card_id for p in due_progress]
+        cards_by_id = {c.id: c for c in db.scalars(select(Card).where(Card.id.in_(ids)))}
+        pbc = {p.card_id: p for p in due_progress}
+        for cid in ids:
+            card = cards_by_id.get(cid)
+            if card:
+                queue.append(_serialize_card(card, pbc[cid], include_progress=True))
+                due_count += 1
 
     return {"queue": queue, "count": len(queue), "new_count": new_count, "due_count": due_count}
 
