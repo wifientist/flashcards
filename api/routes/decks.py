@@ -27,9 +27,9 @@ def _serialize_deck(deck: Deck, card_count: int = 0) -> dict:
 
 
 def _visible_decks_stmt(stmt, payload):
-    """Public decks (owner NULL) + the caller's own; admins see all."""
-    if _is_admin(payload):
-        return stmt
+    """Public decks (owner NULL) + the caller's own private deck. Even admins
+    only see their own private deck in the list — other users' "My Cards" decks
+    aren't theirs to manage here (per-user oversight lives on the Cards page)."""
     if payload and payload.get("authenticated"):
         return stmt.where(or_(Deck.owner_id.is_(None), Deck.owner_id == payload["user_id"]))
     return stmt.where(Deck.owner_id.is_(None))

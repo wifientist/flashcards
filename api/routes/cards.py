@@ -3,6 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from sqlalchemy import select, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -55,12 +56,19 @@ def _validate_public_deck(db: Session, deck_id):
 
 
 def _default_deck_id(db: Session, user_id: str) -> str:
-    """The user's single auto 'My Cards' private deck, created on first use."""
+    """The user's single auto 'My Cards' private deck, created on first use.
+    Race-safe: a concurrent create hits the unique index and we re-read."""
     deck = db.scalar(select(Deck).where(Deck.owner_id == user_id))
-    if not deck:
-        deck = Deck(name="My Cards", owner_id=user_id, created_by=user_id)
-        db.add(deck)
+    if deck:
+        return deck.id
+    deck = Deck(name="My Cards", owner_id=user_id, created_by=user_id)
+    db.add(deck)
+    try:
         db.flush()  # assign id within the current transaction
+    except IntegrityError:
+        db.rollback()
+        deck = db.scalar(select(Deck).where(Deck.owner_id == user_id))
+        return deck.id if deck else None
     return deck.id
 
 

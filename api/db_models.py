@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Column, String, Text, Integer, Boolean, DateTime, ForeignKey,
+    Column, String, Text, Integer, Boolean, DateTime, ForeignKey, Index, text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import relationship
@@ -43,6 +43,11 @@ class User(Base):
 
 class Deck(Base):
     __tablename__ = "decks"
+    # At most one private deck per owner (public decks have NULL owner_id).
+    __table_args__ = (
+        Index("uq_decks_owner", "owner_id", unique=True,
+              postgresql_where=text("owner_id IS NOT NULL")),
+    )
 
     id = Column(String, primary_key=True, default=_uuid)
     name = Column(String, nullable=False)
