@@ -187,22 +187,31 @@ export default function CardsPage() {
             ) : (
               <div key={card.card_id} className="bg-white border border-gray-300 rounded shadow p-4">
                 <div className="cursor-pointer" onClick={() => toggleFlip(card.card_id)}>
-                  <p className="text-lg font-semibold mb-2">
-                    {flipped[card.card_id] ? 'Back:' : 'Front:'}
-                    {card.owner_id && (
-                      <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded align-middle">
-                        🔒 {card.owner_email || 'Private'}
-                      </span>
-                    )}
-                  </p>
-                  <p className="mb-2">{flipped[card.card_id] ? card.back : card.front}</p>
-                  {user && card.user_progress && (
-                    <p className="text-xs text-gray-500 mb-1">
-                      <span className="font-medium uppercase">{card.user_progress.status || 'new'}</span>
-                      {card.user_progress.review_count > 0 && <> · {card.user_progress.review_count}× reviewed</>}
-                      {card.user_progress.flagged && <> · ★</>}
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <p className="text-lg font-semibold">
+                      {flipped[card.card_id] ? 'Back:' : 'Front:'}
+                      <span className="ml-2 text-xs font-normal text-blue-500 align-middle">Click to flip</span>
+                      {card.owner_id && (
+                        <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded align-middle">
+                          🔒 {card.owner_email || 'Private'}
+                        </span>
+                      )}
                     </p>
-                  )}
+                    {user && card.user_progress && (
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-medium uppercase bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                          {card.user_progress.status || 'new'}
+                        </span>
+                        {(card.user_progress.review_count > 0 || card.user_progress.flagged) && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {card.user_progress.review_count > 0 && <>{card.user_progress.review_count}× reviewed</>}
+                            {card.user_progress.flagged && <> · ★</>}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <p className="mb-2">{flipped[card.card_id] ? card.back : card.front}</p>
                   <div className="flex flex-wrap gap-1 items-center text-sm text-gray-500">
                     {card.labels?.map((l) => (
                       <button
@@ -216,7 +225,6 @@ export default function CardsPage() {
                     ))}
                     {deckName(card.deck_id) && <span className="text-xs">· Deck: {deckName(card.deck_id)}</span>}
                   </div>
-                  <p className="text-xs text-blue-500 mt-2">Click to flip</p>
                 </div>
                 {user && (
                   <div className="mt-3 pt-2 border-t flex gap-3 text-sm">
