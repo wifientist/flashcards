@@ -2,11 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 
+// Ordered low → high knowledge (with the manual "difficult" flag last).
+const STATUS_ORDER = ['new', 'learning', 'relearning', 'review', 'mastered', 'difficult'];
+
 const STATUS_COLORS = {
   new: 'bg-gray-400',
   learning: 'bg-orange-400',
-  review: 'bg-green-500',
   relearning: 'bg-red-400',
+  review: 'bg-green-500',
   mastered: 'bg-blue-500',
   difficult: 'bg-purple-500',
 };
@@ -36,45 +39,49 @@ export default function DashboardPage() {
   if (error) return <p className="text-center mt-8 text-red-600">{error}</p>;
 
   const breakdown = summary.status_breakdown || {};
-  const totalTracked = Object.values(breakdown).reduce((a, b) => a + b, 0);
+  const total = summary.total_cards || 0;
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Your Dashboard</h1>
+      <h1 className="text-2xl font-bold mb-1">Your Dashboard</h1>
+      <p className="text-sm text-gray-500 mb-4">{summary.total_reviews} reviews logged all-time</p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <Tile label="Cards studied" value={summary.total_cards_studied} />
-        <Tile label="Total reviews" value={summary.total_reviews} />
+        <Tile label="Total cards" value={total} />
+        <Tile label="Studied" value={summary.total_cards_studied} />
         <Tile label="Due now" value={summary.due_now} accent={summary.due_now > 0 ? 'text-green-600' : 'text-gray-400'} />
         <Tile label="Starred" value={summary.starred} accent="text-amber-500" />
       </div>
 
       {summary.due_now > 0 && (
         <Link
-          to="/study"
+          to="/study?due=1"
           className="block text-center bg-blue-600 text-white rounded-lg py-3 mb-6 hover:bg-blue-700"
         >
-          Study {summary.due_now} due card{summary.due_now === 1 ? '' : 's'} →
+          Review {summary.due_now} due card{summary.due_now === 1 ? '' : 's'} →
         </Link>
       )}
 
-      <h2 className="text-lg font-semibold mb-2">Status breakdown</h2>
-      {totalTracked === 0 ? (
-        <p className="text-gray-500 text-sm">No cards studied yet — head to Study to begin.</p>
+      <h2 className="text-lg font-semibold mb-2">Knowledge breakdown</h2>
+      {total === 0 ? (
+        <p className="text-gray-500 text-sm">No cards yet.</p>
       ) : (
         <div className="space-y-2">
-          {Object.entries(breakdown).map(([status, count]) => (
-            <div key={status} className="flex items-center gap-2 text-sm">
-              <span className="w-20 text-gray-600 capitalize">{status}</span>
-              <div className="flex-1 bg-gray-100 rounded h-4 overflow-hidden">
-                <div
-                  className={`h-full ${STATUS_COLORS[status] || 'bg-gray-400'}`}
-                  style={{ width: `${totalTracked ? (count / totalTracked) * 100 : 0}%` }}
-                />
+          {STATUS_ORDER.map((status) => {
+            const count = breakdown[status] || 0;
+            return (
+              <div key={status} className="flex items-center gap-2 text-sm">
+                <span className="w-20 text-gray-600 capitalize">{status}</span>
+                <div className="flex-1 bg-gray-100 rounded h-4 overflow-hidden">
+                  <div
+                    className={`h-full ${STATUS_COLORS[status] || 'bg-gray-400'}`}
+                    style={{ width: `${total ? (count / total) * 100 : 0}%` }}
+                  />
+                </div>
+                <span className="w-8 text-right text-gray-600">{count}</span>
               </div>
-              <span className="w-8 text-right text-gray-600">{count}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -17,10 +17,12 @@ router = APIRouter()
 
 @router.get("/study/queue")
 def study_queue(limit: int = 20, deck_id: Optional[str] = None,
+                due_only: bool = False,
                 db: Session = Depends(get_db),
                 payload=Depends(require_authenticated)):
-    """The caller's study queue: cards due now (most overdue first), then new
-    (never-seen) cards, up to `limit`. Optionally scoped to one deck."""
+    """The caller's study queue: cards due now (shuffled), then new (never-seen)
+    cards, up to `limit`. `due_only=true` returns just the due cards (no new
+    backfill). Optionally scoped to one deck."""
     user_id = payload["user_id"]
     now = scheduler.now_utc()
 
@@ -52,8 +54,8 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
         if len(queue) >= limit:
             break
 
-    # Backfill with new cards (no progress row yet).
-    if len(queue) < limit:
+    # Backfill with new cards (no progress row yet) unless due-only was requested.
+    if not due_only and len(queue) < limit:
         tracked = set(db.scalars(
             select(Progress.card_id).where(Progress.user_id == user_id)
         ))

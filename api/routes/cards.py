@@ -289,7 +289,7 @@ def get_my_progress_summary(db: Session = Depends(get_db),
                             payload=Depends(require_authenticated)):
     """Summary statistics of the caller's progress."""
     status_counts = {s.value: 0 for s in ProgressStatus}
-    total_cards = 0
+    studied = 0
     total_reviews = 0
     due_now = 0
     starred = 0
@@ -299,7 +299,7 @@ def get_my_progress_summary(db: Session = Depends(get_db),
         select(Progress).where(Progress.user_id == payload["user_id"])
     )
     for p in rows:
-        total_cards += 1
+        studied += 1
         if p.status in status_counts:
             status_counts[p.status] += 1
         total_reviews += p.review_count or 0
@@ -308,8 +308,15 @@ def get_my_progress_summary(db: Session = Depends(get_db),
         if p.due is not None and p.due <= now:
             due_now += 1
 
+    # Total cards the caller can see (public + their own private cards).
+    total_cards = db.scalar(_visible_cards_stmt(select(func.count(Card.id)), payload)) or 0
+    # Untouched cards are effectively "new" — fold them in so the breakdown
+    # reflects the whole library, not just cards already studied.
+    status_counts["new"] += max(0, total_cards - studied)
+
     return {
-        "total_cards_studied": total_cards,
+        "total_cards": total_cards,
+        "total_cards_studied": studied,
         "total_reviews": total_reviews,
         "due_now": due_now,
         "starred": starred,
