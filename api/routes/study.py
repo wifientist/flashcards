@@ -76,13 +76,18 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
 
 
 @router.get("/study/marked")
-def marked_cards(db: Session = Depends(get_db),
+def marked_cards(deck_id: Optional[str] = None, db: Session = Depends(get_db),
                  payload=Depends(require_authenticated)):
-    """The caller's starred (flagged) cards."""
+    """The caller's starred (flagged) cards, optionally scoped to one deck."""
     user_id = payload["user_id"]
-    rows = list(db.scalars(
-        select(Progress).where(Progress.user_id == user_id, Progress.flagged.is_(True))
-    ))
+    stmt = (
+        select(Progress)
+        .join(Card, Card.id == Progress.card_id)
+        .where(Progress.user_id == user_id, Progress.flagged.is_(True))
+    )
+    if deck_id:
+        stmt = stmt.where(Card.deck_id == deck_id)
+    rows = list(db.scalars(stmt))
     progress_by_card = {p.card_id: p for p in rows}
     ids = list(progress_by_card.keys())
     cards = list(db.scalars(select(Card).where(Card.id.in_(ids)))) if ids else []
