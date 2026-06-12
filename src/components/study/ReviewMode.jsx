@@ -85,6 +85,7 @@ export default function ReviewMode({ deckId }) {
       </div>
 
       <FlipCard
+        key={current.card_id}
         front={current.front}
         back={current.back}
         flipped={flipped}
