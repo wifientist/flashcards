@@ -45,3 +45,14 @@ def test_export_csv_roundtrip(admin, make_deck):
 
 def test_export_requires_auth(client):
     assert client.get("/export/cards").status_code == 401
+
+
+def test_import_sanitizes_garbage_chars(admin):
+    # NUL control char + Unicode replacement char should become spaces; a real
+    # em-dash must be preserved.
+    content = json.dumps({"cards": [{"front": "a\x00b�c", "back": "x — y"}]})
+    r = admin.post("/import/cards", json={"format": "json", "content": content})
+    assert r.json()["imported"] == 1
+    card = admin.get("/cards").json()["cards"][0]
+    assert card["front"] == "a b c"   # control + replacement -> spaces
+    assert card["back"] == "x — y"    # em-dash preserved
