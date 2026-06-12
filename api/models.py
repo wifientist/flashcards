@@ -60,7 +60,9 @@ class Label(BaseModel):
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
-    roles: Optional[List[str]] = ["user"]  # Default to user role
+    # NOTE: roles are intentionally NOT accepted from the client. New users are
+    # always created with the "user" role; admin promotion happens via the
+    # admin-only PUT /auth/users/{user_id}/roles endpoint.
 
 class UserLogin(BaseModel):
     email: EmailStr

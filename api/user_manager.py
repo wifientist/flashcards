@@ -23,7 +23,7 @@ class UserManager:
             user_id=user_id,
             email=user_data.email,
             hashed_password=hashed_password,
-            roles=user_data.roles,
+            roles=["user"],  # always created as a plain user; never trust client roles
             created_at=datetime.utcnow().isoformat(),
             is_active=True
         )

@@ -8,17 +8,51 @@ from models import (
 )
 from user_manager import user_manager
 from session_manager import session_manager
+from rate_limit import rate_limit
+from config import (
+    COOKIE_SECURE,
+    COOKIE_SAMESITE,
+    ACCESS_TOKEN_TTL_SECONDS,
+    REFRESH_TOKEN_TTL_SECONDS,
+)
 from datetime import datetime
 import uuid
 
 router = APIRouter(prefix='/auth')
+
+
+def _set_auth_cookie(response: Response, key: str, value: str, max_age: int):
+    """Set an auth cookie with consistent, hardened flags."""
+    response.set_cookie(
+        key,
+        value,
+        max_age=max_age,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+
+
+def _clear_auth_cookie(response: Response, key: str):
+    """Delete an auth cookie using the same attributes it was set with."""
+    response.delete_cookie(
+        key,
+        path="/",
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+    )
 
 @router.get("/health")
 def health_check():
     """Health check endpoint"""
     return {"status": "ok"}
 
-@router.post("/register")
+@router.post(
+    "/register",
+    dependencies=[Depends(rate_limit("register", limit=5, window_seconds=3600))],
+)
 async def register(user_data: UserCreate):
     """Register a new user"""
     try:
@@ -34,7 +68,10 @@ async def register(user_data: UserCreate):
             detail=str(e)
         )
 
-@router.post("/login")
+@router.post(
+    "/login",
+    dependencies=[Depends(rate_limit("login", limit=10, window_seconds=300))],
+)
 async def login(response: Response, login_data: UserLogin):
     """Authenticate user and create session"""
     user = user_manager.authenticate_user(login_data.email, login_data.password)
@@ -66,9 +103,9 @@ async def login(response: Response, login_data: UserLogin):
     )
     
     # Set cookies
-    response.set_cookie("access_token", access_token, httponly=True, max_age=900)
-    response.set_cookie("refresh_token", refresh_token, httponly=True, max_age=604800)
-    response.set_cookie("session_id", session_id, httponly=True, max_age=604800)
+    _set_auth_cookie(response, "access_token", access_token, ACCESS_TOKEN_TTL_SECONDS)
+    _set_auth_cookie(response, "refresh_token", refresh_token, REFRESH_TOKEN_TTL_SECONDS)
+    _set_auth_cookie(response, "session_id", session_id, REFRESH_TOKEN_TTL_SECONDS)
     
     return {
         "message": "Login successful",
@@ -127,7 +164,7 @@ async def refresh_token(request: Request, response: Response):
         authenticated=True
     )
     
-    response.set_cookie("access_token", new_access_token, httponly=True, max_age=900)
+    _set_auth_cookie(response, "access_token", new_access_token, ACCESS_TOKEN_TTL_SECONDS)
     return {"message": "Token refreshed successfully"}
 
 @router.post("/logout")
@@ -138,10 +175,10 @@ def logout(request: Request, response: Response):
     if session_id:
         session_manager.invalidate_session(session_id)
     
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
-    response.delete_cookie("session_id")
-    
+    _clear_auth_cookie(response, "access_token")
+    _clear_auth_cookie(response, "refresh_token")
+    _clear_auth_cookie(response, "session_id")
+
     return {"message": "Logged out successfully"}
 
 @router.get("/users", dependencies=[Depends(require_admin)])
