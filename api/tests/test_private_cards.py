@@ -68,6 +68,12 @@ def test_cannot_review_or_track_invisible_card(trusted, user):
     assert user.put(f"/cards/{cid}/progress", json={"flagged": True}).status_code == 404
 
 
+def test_private_card_shows_owner_email_to_admin(trusted, admin):
+    trusted.post("/cards", json={"front": "p", "back": "x"})
+    priv = next(c for c in admin.get("/cards").json()["cards"] if c["front"] == "p")
+    assert priv["owner_email"] == "trusted@test.com"
+
+
 def test_admin_can_audit_a_users_cards(trusted, admin):
     trusted.post("/cards", json={"front": "p1", "back": "x"})
     trusted.post("/cards", json={"front": "p2", "back": "y"})

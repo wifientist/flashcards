@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
+import CopyCardModal from '../components/CopyCardModal';
 
 const ROLES = ['user', 'trusted', 'admin'];
 
 export default function AdminPage() {
   const { user: me } = useAuth();
-  const { notify } = useToast();
   const [users, setUsers] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [error, setError] = useState('');
@@ -17,7 +16,7 @@ export default function AdminPage() {
   const [publicDecks, setPublicDecks] = useState([]);
   const [auditUserId, setAuditUserId] = useState('');
   const [auditCards, setAuditCards] = useState([]);
-  const [copyTarget, setCopyTarget] = useState('');
+  const [copyTarget, setCopyTarget] = useState(null);
 
   const loadAuditCards = useCallback(async (uid) => {
     if (!uid) { setAuditCards([]); return; }
@@ -34,15 +33,6 @@ export default function AdminPage() {
       .then((d) => setPublicDecks((d.decks || []).filter((x) => !x.owner_id)))
       .catch(() => {});
   }, []);
-
-  const copyCard = async (cardId) => {
-    try {
-      await api.post(`/api/cards/${cardId}/copy`, { deck_id: copyTarget || null });
-      notify('Copied to public.', 'success');
-    } catch (err) {
-      setError(err.message);
-    }
-  };
 
   const loadUsers = useCallback(async () => {
     try {
@@ -245,17 +235,6 @@ export default function AdminPage() {
               <option key={u.user_id} value={u.user_id}>{u.email}</option>
             ))}
           </select>
-          {auditUserId && (
-            <>
-              <span className="text-gray-500 ml-2">Copy into:</span>
-              <select value={copyTarget} onChange={(e) => setCopyTarget(e.target.value)} className="border p-2 rounded">
-                <option value="">— No deck —</option>
-                {publicDecks.map((d) => (
-                  <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
-                ))}
-              </select>
-            </>
-          )}
         </div>
 
         {auditUserId && (
@@ -265,9 +244,12 @@ export default function AdminPage() {
             <ul className="divide-y text-sm">
               {auditCards.map((c) => (
                 <li key={c.card_id} className="py-2 flex items-center justify-between gap-3">
-                  <span className="truncate"><strong>{c.front}</strong> → {c.back}</span>
-                  <button onClick={() => copyCard(c.card_id)} className="text-green-700 hover:underline whitespace-nowrap">
-                    Copy to public →
+                  <span className="truncate">
+                    <strong>{c.front}</strong> → {c.back}
+                    {c.labels?.length > 0 && <span className="text-gray-400"> · {c.labels.join(', ')}</span>}
+                  </span>
+                  <button onClick={() => setCopyTarget(c)} className="text-green-700 hover:underline whitespace-nowrap">
+                    Copy to public…
                   </button>
                 </li>
               ))}
@@ -275,6 +257,15 @@ export default function AdminPage() {
           )
         )}
       </div>
+
+      {copyTarget && (
+        <CopyCardModal
+          card={copyTarget}
+          publicDecks={publicDecks}
+          onClose={() => setCopyTarget(null)}
+          onCopied={() => loadAuditCards(auditUserId)}
+        />
+      )}
 
       <h2 className="text-xl font-semibold mb-2">Active Sessions ({sessions.length})</h2>
       <div className="overflow-x-auto border rounded">

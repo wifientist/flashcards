@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
-from db_models import Card, Progress, Deck
+from db_models import Card, Progress, Deck, User
 from models import CardCreate, CardUpdate, ProgressUpdate, ProgressStatus, CopyRequest
 from roles import require_roles, get_current_user, require_authenticated
 import scheduler
@@ -93,7 +93,7 @@ def _serialize_progress(p: Optional[Progress]) -> dict:
 
 
 def _serialize_card(card: Card, progress: Optional[Progress] = None,
-                    include_progress: bool = False) -> dict:
+                    include_progress: bool = False, owner_email: Optional[str] = None) -> dict:
     data = {
         "card_id": card.id,
         "front": card.front,
@@ -101,6 +101,7 @@ def _serialize_card(card: Card, progress: Optional[Progress] = None,
         "labels": list(card.labels or []),
         "deck_id": card.deck_id,
         "owner_id": card.owner_id,
+        "owner_email": owner_email,
         "created_by": card.created_by,
         "created_at": _iso(card.created_at),
     }
@@ -181,9 +182,16 @@ def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
         )
         progress_by_card = {p.card_id: p for p in rows}
 
+    # Batch-resolve owner emails so private cards show whose they are.
+    owner_ids = {c.owner_id for c in cards if c.owner_id}
+    email_by_id = {}
+    if owner_ids:
+        email_by_id = dict(db.execute(select(User.id, User.email).where(User.id.in_(owner_ids))).all())
+
     return {
         "cards": [
-            _serialize_card(c, progress_by_card.get(c.id), include_progress=authed)
+            _serialize_card(c, progress_by_card.get(c.id), include_progress=authed,
+                            owner_email=email_by_id.get(c.owner_id))
             for c in cards
         ]
     }
@@ -205,7 +213,8 @@ def get_card(card_id: str, db: Session = Depends(get_db),
     if authed:
         progress = db.get(Progress, (payload["user_id"], card_id))
 
-    return {"card": _serialize_card(card, progress, include_progress=authed)}
+    owner_email = db.scalar(select(User.email).where(User.id == card.owner_id)) if card.owner_id else None
+    return {"card": _serialize_card(card, progress, include_progress=authed, owner_email=owner_email)}
 
 
 @router.put("/cards/{card_id}")
