@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException, status, Depends, Response
 from sqlalchemy.orm import Session
 from jwt_utils import create_access_token, create_refresh_token, verify_token
 from roles import get_current_user, require_admin
-from models import SessionInfo, UserLogin, RoleUpdateRequest, AdminUserCreate, StudyDecksUpdate
+from models import SessionInfo, UserLogin, RoleUpdateRequest, AdminUserCreate, StudyDecksUpdate, StudyFiltersUpdate
 from database import get_db
 from db_models import User
 from roles import require_authenticated
@@ -193,6 +193,35 @@ def set_study_decks(body: StudyDecksUpdate, db: Session = Depends(get_db),
         user.study_deck_ids = body.deck_ids
         db.commit()
     return {"deck_ids": body.deck_ids}
+
+
+def _filters(user: User) -> dict:
+    return {
+        "deck_ids": list(user.study_deck_ids or []),
+        "labels": list(user.study_labels or []),
+        "statuses": list(user.study_statuses or []),
+    }
+
+
+@router.get("/me/study-filters")
+def get_study_filters(db: Session = Depends(get_db), payload=Depends(require_authenticated)):
+    """The caller's persisted filter scope (decks + labels + statuses), shared
+    across the Cards and Study pages. Empty arrays mean no filter."""
+    user = db.get(User, payload["user_id"])
+    return _filters(user) if user else {"deck_ids": [], "labels": [], "statuses": []}
+
+
+@router.put("/me/study-filters")
+def set_study_filters(body: StudyFiltersUpdate, db: Session = Depends(get_db),
+                      payload=Depends(require_authenticated)):
+    """Persist the caller's filter scope."""
+    user = db.get(User, payload["user_id"])
+    if user:
+        user.study_deck_ids = body.deck_ids
+        user.study_labels = body.labels
+        user.study_statuses = body.statuses
+        db.commit()
+    return _filters(user) if user else body.model_dump()
 
 
 @router.get("/users", dependencies=[Depends(require_admin)])

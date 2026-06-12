@@ -103,6 +103,11 @@ class AdminUserCreate(BaseModel):
 class StudyDecksUpdate(BaseModel):
     deck_ids: List[str] = []
 
+class StudyFiltersUpdate(BaseModel):
+    deck_ids: List[str] = []
+    labels: List[str] = []
+    statuses: List[str] = []
+
 class UserInfo(BaseModel):
     user_id: str
     email: str

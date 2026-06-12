@@ -1,23 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useStudyFilters } from '../hooks/useStudyFilters';
+import { STATUS_OPTIONS, filterCards } from '../utils/cardFilter';
 import TagInput from './TagInput';
 import CardAdder from './CardAdder';
 import CopyCardModal from './CopyCardModal';
 import SuggestEditModal from './SuggestEditModal';
 import DeckMultiSelect from './study/DeckMultiSelect';
 import MultiSelect from './MultiSelect';
-
-const STATUS_OPTIONS = [
-  { value: 'new', label: 'New' },
-  { value: 'learning', label: 'Learning' },
-  { value: 'relearning', label: 'Relearning' },
-  { value: 'review', label: 'Review' },
-  { value: 'mastered', label: 'Mastered' },
-  { value: 'difficult', label: 'Difficult' },
-  { value: 'due', label: '⏰ Due now' },
-  { value: 'starred', label: '★ Starred' },
-];
 
 export default function CardsPage() {
   const { user } = useAuth();
@@ -27,13 +18,16 @@ export default function CardsPage() {
   const [copyTarget, setCopyTarget] = useState(null);
   const [suggestTarget, setSuggestTarget] = useState(null);
 
+  // Filter scope (decks + labels + statuses) is shared with Study and persisted
+  // per profile.
+  const {
+    decks, reloadDecks, labelOptions, reloadLabels,
+    selectedDeckIds, selectedLabels, selectedStatuses,
+    updateDecks, updateLabels, updateStatuses,
+  } = useStudyFilters(!!user);
+
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
-  const [statusFilters, setStatusFilters] = useState([]); // statuses + 'starred'/'due'
-  const [deckIds, setDeckIds] = useState([]);
-  const [decks, setDecks] = useState([]);
-  const [labelSuggestions, setLabelSuggestions] = useState([]);
   const [flipped, setFlipped] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ front: '', back: '', labels: [], deck_id: '' });
@@ -42,25 +36,18 @@ export default function CardsPage() {
   const canModify = (card) =>
     isAdmin || (card.owner_id && card.owner_id === user?.user_id);
 
-  const loadDecks = useCallback(() => {
-    api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    loadDecks();
-    api.get('/api/labels').then((d) => setLabelSuggestions((d.labels || []).map((l) => l.label))).catch(() => {});
-  }, [loadDecks]);
+  const toggleLabel = (l) =>
+    updateLabels(selectedLabels.includes(l) ? selectedLabels.filter((x) => x !== l) : [...selectedLabels, l]);
 
   const deckName = useCallback(
     (id) => decks.find((d) => d.deck_id === id)?.name || null,
     [decks]
   );
 
-  const deckKey = deckIds.join(',');
+  const deckKey = selectedDeckIds.join(',');
   const load = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      if (filter) params.set('label', filter);
       if (deckKey) params.set('deck_ids', deckKey);
       const qs = params.toString();
       const data = await api.get(`/api/cards${qs ? `?${qs}` : ''}`);
@@ -71,7 +58,7 @@ export default function CardsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filter, deckKey]);
+  }, [deckKey]);
 
   useEffect(() => {
     load();
@@ -118,16 +105,7 @@ export default function CardsPage() {
     }
   };
 
-  const now = Date.now();
-  const matchOne = (card, f) => {
-    const p = card.user_progress || {};
-    if (f === 'starred') return !!p.flagged;
-    if (f === 'due') return p.due && new Date(p.due).getTime() <= now;
-    return (p.status || 'new') === f;
-  };
-  const visibleCards = cards.filter(
-    (card) => statusFilters.length === 0 || statusFilters.some((f) => matchOne(card, f))
-  );
+  const visibleCards = filterCards(cards, { statuses: selectedStatuses, labels: selectedLabels });
 
   if (loading) return <p className="text-center mt-8">Loading cards...</p>;
 
@@ -144,26 +122,27 @@ export default function CardsPage() {
           >
             {showCreate ? '× Close' : '+ New card'}
           </button>
-          {showCreate && <CardAdder onCreated={() => { load(); loadDecks(); }} />}
+          {showCreate && <CardAdder onCreated={() => { load(); reloadDecks(); reloadLabels(); }} />}
         </div>
       )}
 
       <div className="mb-4 flex justify-center items-center gap-2 flex-wrap">
-        <input
-          type="text"
-          placeholder="Filter by label..."
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="border border-gray-300 p-2 rounded"
+        <DeckMultiSelect decks={decks} selected={selectedDeckIds} onChange={updateDecks} />
+        <MultiSelect
+          label="Labels"
+          allLabel="Any label"
+          searchable
+          options={labelOptions.map((l) => ({ value: l, label: l }))}
+          selected={selectedLabels}
+          onChange={updateLabels}
         />
-        <DeckMultiSelect decks={decks} selected={deckIds} onChange={setDeckIds} />
         {user && (
           <MultiSelect
             label="Status"
             allLabel="Any status"
             options={STATUS_OPTIONS}
-            selected={statusFilters}
-            onChange={setStatusFilters}
+            selected={selectedStatuses}
+            onChange={updateStatuses}
           />
         )}
       </div>
@@ -180,7 +159,7 @@ export default function CardsPage() {
                 setForm={setEditForm}
                 decks={decks.filter((d) => !d.owner_id)}
                 allowDeck={isAdmin && !card.owner_id}
-                labelSuggestions={labelSuggestions}
+                labelSuggestions={labelOptions}
                 onSave={() => saveEdit(card.card_id)}
                 onCancel={() => setEditingId(null)}
               />
@@ -216,7 +195,7 @@ export default function CardsPage() {
                     {card.labels?.map((l) => (
                       <button
                         key={l}
-                        onClick={(e) => { e.stopPropagation(); setFilter(l); }}
+                        onClick={(e) => { e.stopPropagation(); toggleLabel(l); }}
                         title={`Filter by ${l}`}
                         className="bg-gray-100 hover:bg-blue-100 text-gray-700 rounded px-2 py-0.5 text-xs"
                       >
@@ -260,16 +239,16 @@ export default function CardsPage() {
         <CopyCardModal
           card={copyTarget}
           publicDecks={decks.filter((d) => !d.owner_id)}
-          labelSuggestions={labelSuggestions}
+          labelSuggestions={labelOptions}
           onClose={() => setCopyTarget(null)}
-          onCopied={() => { load(); loadDecks(); }}
+          onCopied={() => { load(); reloadDecks(); }}
         />
       )}
 
       {suggestTarget && (
         <SuggestEditModal
           card={suggestTarget}
-          labelSuggestions={labelSuggestions}
+          labelSuggestions={labelOptions}
           onClose={() => setSuggestTarget(null)}
         />
       )}
