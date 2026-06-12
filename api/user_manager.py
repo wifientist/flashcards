@@ -31,6 +31,22 @@ class UserManager:
         db.refresh(user)
         return user
 
+    def create_user_with_roles(self, db: Session, email: str, password: str,
+                               roles: List[str]) -> User:
+        """Admin path: create a user with explicit roles."""
+        if self.get_user_by_email(db, email):
+            raise ValueError("User with this email already exists")
+        user = User(
+            email=email,
+            hashed_password=hash_password(password),
+            roles=roles or ["user"],
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
     def get_user_by_id(self, db: Session, user_id: str) -> Optional[User]:
         return db.get(User, user_id)
 

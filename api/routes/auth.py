@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException, status, Depends, Response
 from sqlalchemy.orm import Session
 from jwt_utils import create_access_token, create_refresh_token, verify_token
 from roles import get_current_user, require_admin
-from models import SessionInfo, UserCreate, UserLogin, RoleUpdateRequest
+from models import SessionInfo, UserLogin, RoleUpdateRequest, AdminUserCreate
 from database import get_db
 from db_models import User
 from user_manager import user_manager
@@ -58,24 +58,8 @@ def health_check():
     """Health check endpoint"""
     return {"status": "ok"}
 
-@router.post(
-    "/register",
-    dependencies=[Depends(rate_limit("register", limit=5, window_seconds=3600))],
-)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user"""
-    try:
-        user = user_manager.create_user(db, user_data)
-        return {
-            "message": "User created successfully",
-            "user_id": user.id,
-            "email": user.email
-        }
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+# NOTE: public self-registration is intentionally disabled. Users are created
+# by admins via POST /auth/users (and the first admin via seed_admin.py).
 
 @router.post(
     "/login",
@@ -197,6 +181,15 @@ def list_users(db: Session = Depends(get_db)):
     """List all users (admin only)"""
     users = user_manager.list_users(db)
     return {"users": [_serialize_user(u) for u in users]}
+
+@router.post("/users", dependencies=[Depends(require_admin)])
+def admin_create_user(data: AdminUserCreate, db: Session = Depends(get_db)):
+    """Create a user with explicit roles (admin only)."""
+    try:
+        user = user_manager.create_user_with_roles(db, data.email, data.password, data.roles or ["user"])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": "User created", "user_id": user.id, "email": user.email}
 
 @router.put("/users/{user_id}/roles")
 def update_user_roles(user_id: str, role_update: RoleUpdateRequest,

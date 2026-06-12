@@ -9,6 +9,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [error, setError] = useState('');
+  const [newUser, setNewUser] = useState({ email: '', password: '', roles: ['user'] });
 
   const loadUsers = useCallback(async () => {
     try {
@@ -60,6 +61,29 @@ export default function AdminPage() {
     }
   };
 
+  const toggleNewRole = (role) => {
+    setNewUser((u) => ({
+      ...u,
+      roles: u.roles.includes(role) ? u.roles.filter((r) => r !== role) : [...u.roles, role],
+    }));
+  };
+
+  const createUser = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await api.post('/api/auth/users', {
+        email: newUser.email,
+        password: newUser.password,
+        roles: newUser.roles.length ? newUser.roles : ['user'],
+      });
+      setNewUser({ email: '', password: '', roles: ['user'] });
+      await loadUsers();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const forceLogout = async (sessionId) => {
     setError('');
     try {
@@ -74,6 +98,40 @@ export default function AdminPage() {
     <div className="p-4 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
       {error && <div className="bg-red-100 text-red-800 text-sm p-2 rounded mb-4">{error}</div>}
+
+      <form onSubmit={createUser} className="bg-white border rounded p-4 mb-6 space-y-3">
+        <h2 className="font-semibold">Add a user</h2>
+        <div className="flex flex-wrap gap-2">
+          <input
+            type="email"
+            required
+            placeholder="email"
+            value={newUser.email}
+            onChange={(e) => setNewUser((u) => ({ ...u, email: e.target.value }))}
+            className="border p-2 rounded flex-1 min-w-[12rem]"
+          />
+          <input
+            type="password"
+            required
+            placeholder="temporary password"
+            value={newUser.password}
+            onChange={(e) => setNewUser((u) => ({ ...u, password: e.target.value }))}
+            className="border p-2 rounded flex-1 min-w-[12rem]"
+          />
+        </div>
+        <div className="flex items-center gap-4 text-sm">
+          <span className="text-gray-500">Roles:</span>
+          {ROLES.map((role) => (
+            <label key={role} className="flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" checked={newUser.roles.includes(role)} onChange={() => toggleNewRole(role)} />
+              <span>{role}</span>
+            </label>
+          ))}
+          <button type="submit" className="ml-auto bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            Create user
+          </button>
+        </div>
+      </form>
 
       <h2 className="text-xl font-semibold mb-2">Users ({users.length})</h2>
       <div className="overflow-x-auto border rounded mb-8">

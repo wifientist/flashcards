@@ -86,6 +86,11 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    roles: Optional[List[str]] = ["user"]
+
 class UserInfo(BaseModel):
     user_id: str
     email: str
