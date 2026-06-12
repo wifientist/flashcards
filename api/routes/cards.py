@@ -136,7 +136,7 @@ def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
         stmt = stmt.where(Card.owner_id == payload["user_id"])
     else:
         stmt = _visible_cards_stmt(stmt, payload)
-    cards = list(db.scalars(stmt))
+    cards = list(db.scalars(stmt.order_by(func.random())))
 
     authed = bool(payload and payload.get("authenticated"))
     progress_by_card = {}

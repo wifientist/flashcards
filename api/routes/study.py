@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, func
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -25,13 +25,14 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
     now = scheduler.now_utc()
 
     # Cards that are scheduled and currently due (join Card to allow deck scope).
+    # Shuffled so the review order isn't a fixed sequence.
     due_stmt = (
         select(Progress)
         .join(Card, Card.id == Progress.card_id)
         .where(Progress.user_id == user_id,
                Progress.due.is_not(None),
                Progress.due <= now)
-        .order_by(Progress.due.asc())
+        .order_by(func.random())
     )
     if deck_id:
         due_stmt = due_stmt.where(Card.deck_id == deck_id)
@@ -63,6 +64,7 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
             new_stmt = new_stmt.where(Card.deck_id == deck_id)
         if tracked:
             new_stmt = new_stmt.where(Card.id.not_in(tracked))
+        new_stmt = new_stmt.order_by(func.random())
         for card in db.scalars(new_stmt):
             queue.append(_serialize_card(card, None, include_progress=True))
             if len(queue) >= limit:
