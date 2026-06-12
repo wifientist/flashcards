@@ -6,12 +6,15 @@ body (no multipart, so no extra dependency) and bulk-creates cards.
 import csv
 import io
 import json
+import re
+import unicodedata
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from database import get_db
 from db_models import Card, Deck
@@ -23,6 +26,20 @@ router = APIRouter()
 # Labels are multi-valued; join with "|" inside a single CSV cell to avoid
 # colliding with the field comma.
 LABELS_SEP = "|"
+
+# Control characters (minus tab/newline/CR) and the Unicode replacement char,
+# which is what shows up when a file was previously mis-decoded. We replace these
+# with spaces rather than reject the whole import.
+_GARBAGE_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f�]")
+
+
+def _clean_text(s: str) -> str:
+    """Make imported text safe to store: normalize and replace garbage chars
+    with spaces. Legitimate Unicode (em-dashes, accents, emoji) is preserved."""
+    if not s:
+        return s
+    s = unicodedata.normalize("NFC", s)
+    return _GARBAGE_RE.sub(" ", s)
 
 
 def _normalize_labels(value) -> List[str]:
@@ -99,19 +116,28 @@ def import_cards(req: ImportRequest, db: Session = Depends(get_db),
     imported = 0
     skipped = 0
     for item in items:
-        front = str(item.get("front") or "").strip()
-        back = str(item.get("back") or "").strip()
+        front = _clean_text(str(item.get("front") or "").strip())
+        back = _clean_text(str(item.get("back") or "").strip())
         if not front or not back:
             skipped += 1
             continue
+        labels = [_clean_text(l) for l in _normalize_labels(item.get("labels"))]
         db.add(Card(
             front=front,
             back=back,
-            labels=_normalize_labels(item.get("labels")),
+            labels=labels,
             deck_id=req.deck_id,
             created_by=payload["user_id"],
         ))
         imported += 1
 
-    db.commit()
+    try:
+        db.commit()
+    except (SQLAlchemyError, UnicodeError):
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Import failed while saving. The file may contain characters "
+                   "the database can't store — try re-exporting it as UTF-8.",
+        )
     return {"imported": imported, "skipped": skipped}
