@@ -11,10 +11,14 @@ export default function CardViewer() {
   const [filter, setFilter] = useState('');
   const [deckId, setDeckId] = useState('');
   const [decks, setDecks] = useState([]);
+  const [scope, setScope] = useState('all'); // 'all' | 'mine'
   const [flipped, setFlipped] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ front: '', back: '', labels: '', deck_id: '' });
   const [error, setError] = useState('');
+
+  const canModify = (card) =>
+    isAdmin || (card.owner_id && card.owner_id === user?.user_id);
 
   useEffect(() => {
     api.get('/api/decks').then((d) => setDecks(d.decks || [])).catch(() => {});
@@ -29,7 +33,8 @@ export default function CardViewer() {
     try {
       const params = new URLSearchParams();
       if (filter) params.set('label', filter);
-      if (deckId) params.set('deck_id', deckId);
+      if (scope === 'mine') params.set('mine', '1');
+      else if (deckId) params.set('deck_id', deckId);
       const qs = params.toString();
       const data = await api.get(`/api/cards${qs ? `?${qs}` : ''}`);
       setCards(data.cards);
@@ -39,11 +44,22 @@ export default function CardViewer() {
     } finally {
       setLoading(false);
     }
-  }, [filter, deckId]);
+  }, [filter, deckId, scope]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const copyToPublic = async (cardId) => {
+    setError('');
+    try {
+      await api.post(`/api/cards/${cardId}/copy`);
+      alert('Copied to the public pool (deck-less). You can file it into a deck via Edit.');
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const toggleFlip = (cardId) => {
     setFlipped((prev) => ({ ...prev, [cardId]: !prev[cardId] }));
@@ -93,7 +109,7 @@ export default function CardViewer() {
       <h2 className="text-2xl font-bold mb-4 text-center">All Flashcards</h2>
       {error && <div className="bg-red-100 text-red-800 text-sm p-2 rounded mb-4">{error}</div>}
 
-      <div className="mb-4 flex justify-center gap-2">
+      <div className="mb-4 flex justify-center gap-2 flex-wrap">
         <input
           type="text"
           placeholder="Filter by label..."
@@ -101,16 +117,28 @@ export default function CardViewer() {
           onChange={(e) => setFilter(e.target.value)}
           className="border border-gray-300 p-2 rounded"
         />
-        <select
-          value={deckId}
-          onChange={(e) => setDeckId(e.target.value)}
-          className="border border-gray-300 p-2 rounded"
-        >
-          <option value="">All decks</option>
-          {decks.map((d) => (
-            <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
-          ))}
-        </select>
+        {scope === 'all' && (
+          <select
+            value={deckId}
+            onChange={(e) => setDeckId(e.target.value)}
+            className="border border-gray-300 p-2 rounded"
+          >
+            <option value="">All decks</option>
+            {decks.map((d) => (
+              <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
+            ))}
+          </select>
+        )}
+        {user && (
+          <select
+            value={scope}
+            onChange={(e) => setScope(e.target.value)}
+            className="border border-gray-300 p-2 rounded"
+          >
+            <option value="all">All cards</option>
+            <option value="mine">My cards</option>
+          </select>
+        )}
       </div>
 
       {cards.length === 0 ? (
@@ -124,6 +152,7 @@ export default function CardViewer() {
                 form={editForm}
                 setForm={setEditForm}
                 decks={decks}
+                allowDeck={isAdmin}
                 onSave={() => saveEdit(card.card_id)}
                 onCancel={() => setEditingId(null)}
               />
@@ -132,6 +161,11 @@ export default function CardViewer() {
                 <div className="cursor-pointer" onClick={() => toggleFlip(card.card_id)}>
                   <p className="text-lg font-semibold mb-2">
                     {flipped[card.card_id] ? 'Back:' : 'Front:'}
+                    {card.owner_id && (
+                      <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded align-middle">
+                        🔒 Private
+                      </span>
+                    )}
                   </p>
                   <p className="mb-2">{flipped[card.card_id] ? card.back : card.front}</p>
                   <p className="text-sm text-gray-500">
@@ -140,14 +174,23 @@ export default function CardViewer() {
                   </p>
                   <p className="text-xs text-blue-500 mt-2">Click to flip</p>
                 </div>
-                {isAdmin && (
+                {(canModify(card) || (isAdmin && card.owner_id)) && (
                   <div className="mt-3 pt-2 border-t flex gap-3 text-sm">
-                    <button onClick={() => startEdit(card)} className="text-blue-600 hover:underline">
-                      Edit
-                    </button>
-                    <button onClick={() => deleteCard(card.card_id)} className="text-red-600 hover:underline">
-                      Delete
-                    </button>
+                    {canModify(card) && (
+                      <button onClick={() => startEdit(card)} className="text-blue-600 hover:underline">
+                        Edit
+                      </button>
+                    )}
+                    {canModify(card) && (
+                      <button onClick={() => deleteCard(card.card_id)} className="text-red-600 hover:underline">
+                        Delete
+                      </button>
+                    )}
+                    {isAdmin && card.owner_id && (
+                      <button onClick={() => copyToPublic(card.card_id)} className="text-green-700 hover:underline">
+                        Copy to public
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -159,7 +202,7 @@ export default function CardViewer() {
   );
 }
 
-function CardEditForm({ form, setForm, decks, onSave, onCancel }) {
+function CardEditForm({ form, setForm, decks, allowDeck, onSave, onCancel }) {
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
   return (
     <div className="bg-white border border-blue-300 rounded shadow p-4 space-y-2">
@@ -169,13 +212,17 @@ function CardEditForm({ form, setForm, decks, onSave, onCancel }) {
       <input value={form.back} onChange={set('back')} className="w-full border p-2 rounded" />
       <label className="block text-sm font-semibold">Labels (comma-separated)</label>
       <input value={form.labels} onChange={set('labels')} className="w-full border p-2 rounded" />
-      <label className="block text-sm font-semibold">Deck</label>
-      <select value={form.deck_id} onChange={set('deck_id')} className="w-full border p-2 rounded">
-        <option value="">— No deck —</option>
-        {decks.map((d) => (
-          <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
-        ))}
-      </select>
+      {allowDeck && (
+        <>
+          <label className="block text-sm font-semibold">Deck</label>
+          <select value={form.deck_id} onChange={set('deck_id')} className="w-full border p-2 rounded">
+            <option value="">— No deck —</option>
+            {decks.map((d) => (
+              <option key={d.deck_id} value={d.deck_id}>{d.name}</option>
+            ))}
+          </select>
+        </>
+      )}
       <div className="flex gap-2 justify-end pt-1">
         <button onClick={onCancel} className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
         <button onClick={onSave} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>

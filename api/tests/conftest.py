@@ -93,6 +93,16 @@ def user():
 
 
 @pytest.fixture
+def trusted():
+    """A logged-in trusted (non-admin) user who can create private cards."""
+    _create_user("trusted@test.com", "pw1234567", roles=["user", "trusted"])
+    c = TestClient(main.app)
+    resp = c.post("/auth/login", json={"email": "trusted@test.com", "password": "pw1234567"})
+    assert resp.status_code == 200, resp.text
+    return c
+
+
+@pytest.fixture
 def make_card(admin):
     def _make(front="front", back="back", labels=None, deck_id=None):
         r = admin.post("/cards", json={
