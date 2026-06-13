@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy import select, or_, func
 from sqlalchemy.orm import Session
 
@@ -26,16 +26,22 @@ def _deck_id_list(deck_ids: Optional[str]):
 @router.get("/study/queue")
 def study_queue(limit: int = 20, deck_id: Optional[str] = None,
                 deck_ids: Optional[str] = None,
+                labels: Optional[List[str]] = Query(None),
                 db: Session = Depends(get_db),
                 payload=Depends(require_authenticated)):
     """The caller's study queue, ordered new-first then by FSRS priority:
       1. up to `limit` NEW cards (never seen), shuffled — they jump the line.
       2. then ALL DUE cards (scheduled, due now), most-overdue first — so reviews
          never starve behind a backlog of new cards.
-    Spans the given decks (comma-separated deck_ids, or single deck_id; omit for all)."""
+    Spans the given decks (comma-separated deck_ids, or single deck_id; omit for
+    all) and, if `labels` is given, only cards carrying one of those labels. The
+    label filter is applied *before* the new-card cap so chapter-scoped study
+    doesn't starve behind unrelated new cards."""
     user_id = payload["user_id"]
     now = scheduler.now_utc()
     decks = _deck_id_list(deck_ids) or ([deck_id] if deck_id else None)
+    # OR across labels: a card matches if it carries any selected label.
+    label_filter = or_(*[Card.labels.any(l) for l in labels]) if labels else None
 
     queue = []
 
@@ -48,6 +54,8 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
     )
     if decks is not None:
         new_stmt = new_stmt.where(Card.deck_id.in_(decks))
+    if label_filter is not None:
+        new_stmt = new_stmt.where(label_filter)
     if tracked:
         new_stmt = new_stmt.where(Card.id.not_in(tracked))
     new_stmt = new_stmt.order_by(func.random()).limit(limit)
@@ -67,6 +75,8 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
     )
     if decks is not None:
         due_stmt = due_stmt.where(Card.deck_id.in_(decks))
+    if label_filter is not None:
+        due_stmt = due_stmt.where(label_filter)
     due_progress = list(db.scalars(due_stmt))
     due_count = 0
     if due_progress:

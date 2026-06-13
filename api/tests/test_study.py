@@ -48,6 +48,26 @@ def test_queue_reports_new_count(user, make_card):
     assert q["new_count"] == 2 and q["count"] == 2
 
 
+def test_queue_label_filter_applies_before_new_cap(user, make_card):
+    # Many unrelated new cards plus a couple of ch1 cards. With the label scope,
+    # the ch1 cards must surface even though the 20-new cap could otherwise be
+    # filled entirely by unrelated cards.
+    for i in range(30):
+        make_card(front=f"other{i}", labels=["ch2"])
+    make_card(front="ch1-a", labels=["ch1"])
+    make_card(front="ch1-b", labels=["ch1", "extra"])
+    q = user.get("/study/queue?labels=ch1").json()
+    assert {c["front"] for c in q["queue"]} == {"ch1-a", "ch1-b"}
+
+
+def test_queue_label_filter_is_or(user, make_card):
+    make_card(front="a", labels=["ch1"])
+    make_card(front="b", labels=["ch2"])
+    make_card(front="c", labels=["ch3"])
+    q = user.get("/study/queue?labels=ch1&labels=ch2").json()
+    assert {c["front"] for c in q["queue"]} == {"a", "b"}
+
+
 def test_queue_spans_multiple_decks(user, make_card, make_deck):
     d1, d2 = make_deck(name="D1"), make_deck(name="D2")
     make_card(front="c1", deck_id=d1)

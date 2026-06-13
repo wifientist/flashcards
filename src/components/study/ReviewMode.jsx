@@ -15,6 +15,9 @@ const GRADES = [
 export default function ReviewMode({ deckIds = [], labels = [], statuses = [] }) {
   const { notify } = useToast();
   const deckKey = deckIds.join(',');
+  // Key on joined values, not array identity (which changes each render).
+  const labelKey = labels.join('\x1f');
+  const statusKey = statuses.join('\x1f');
   const [rawQueue, setRawQueue] = useState([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -23,11 +26,17 @@ export default function ReviewMode({ deckIds = [], labels = [], statuses = [] })
   const [reviewed, setReviewed] = useState(0);
   const [showLegend, setShowLegend] = useState(false);
 
+  // The label filter is applied server-side so the new-card cap (20/load) is
+  // taken from label-matching cards — otherwise a chapter scope starves behind
+  // unrelated new cards. Status is applied client-side below.
   const loadQueue = useCallback(async () => {
     setLoading(true);
     try {
-      const qs = deckKey ? `?deck_ids=${encodeURIComponent(deckKey)}` : '';
-      const data = await api.get(`/api/study/queue${qs}`);
+      const params = new URLSearchParams();
+      if (deckKey) params.set('deck_ids', deckKey);
+      if (labelKey) labelKey.split('\x1f').forEach((l) => params.append('labels', l));
+      const qs = params.toString();
+      const data = await api.get(`/api/study/queue${qs ? `?${qs}` : ''}`);
       setRawQueue(data.queue || []);
       setIndex(0);
       setFlipped(false);
@@ -38,20 +47,16 @@ export default function ReviewMode({ deckIds = [], labels = [], statuses = [] })
     } finally {
       setLoading(false);
     }
-  }, [deckKey, notify]);
+  }, [deckKey, labelKey, notify]);
 
   useEffect(() => {
     loadQueue();
   }, [loadQueue]);
 
-  // Narrow the FSRS queue by the shared label/status scope (e.g. study only ch1,
-  // or only the cards already due). Key on joined values, not array identity
-  // (which changes each render), so position doesn't reset on every render.
-  const labelKey = labels.join('\x1f');
-  const statusKey = statuses.join('\x1f');
+  // Labels are already applied server-side; only narrow by status here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const queue = useMemo(() => filterCards(rawQueue, { labels, statuses }), [rawQueue, labelKey, statusKey]);
-  useEffect(() => { setIndex(0); setFlipped(false); }, [labelKey, statusKey]);
+  const queue = useMemo(() => filterCards(rawQueue, { statuses }), [rawQueue, statusKey]);
+  useEffect(() => { setIndex(0); setFlipped(false); }, [statusKey]);
 
   const current = queue[index];
 
