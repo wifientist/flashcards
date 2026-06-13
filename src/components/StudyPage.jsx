@@ -3,6 +3,8 @@ import ReviewMode from './study/ReviewMode';
 import BrowseMode from './study/BrowseMode';
 import DeckMultiSelect from './study/DeckMultiSelect';
 import MultiSelect from './MultiSelect';
+import InfoBubble from './InfoBubble';
+import StudyExplainer from './StudyExplainer';
 import { useStudyFilters } from '../hooks/useStudyFilters';
 import { STATUS_OPTIONS } from '../utils/cardFilter';
 
@@ -56,6 +58,9 @@ export default function StudyPage() {
           selected={selectedStatuses}
           onChange={updateStatuses}
         />
+        <InfoBubble title="How studying works · where are my cards?">
+          <StudyExplainer />
+        </InfoBubble>
       </div>
 
       {mode === 'study' && <ReviewMode deckIds={selectedDeckIds} {...filters} />}

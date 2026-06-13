@@ -147,6 +147,12 @@ export default function CardsPage() {
         )}
       </div>
 
+      <p className="text-center text-xs text-gray-500 mb-3">
+        {visibleCards.length === cards.length
+          ? `${cards.length} card${cards.length === 1 ? '' : 's'}`
+          : `${visibleCards.length} of ${cards.length} cards match`}
+      </p>
+
       {visibleCards.length === 0 ? (
         <p className="text-center">No cards found.</p>
       ) : (

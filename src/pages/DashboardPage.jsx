@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
+import InfoBubble from '../components/InfoBubble';
+import StudyExplainer from '../components/StudyExplainer';
 
 // Ordered low → high knowledge (with the manual "difficult" flag last).
 const STATUS_ORDER = ['new', 'learning', 'relearning', 'review', 'difficult', 'mastered'];
@@ -52,8 +54,11 @@ export default function DashboardPage() {
         <Tile label="Due to review" value={summary.due_now} accent={summary.due_now > 0 ? 'text-green-600' : 'text-gray-400'} />
         <Tile label="Starred" value={summary.starred} accent="text-amber-500" />
       </div>
-      <p className="text-xs text-gray-400 mb-6">
+      <p className="text-xs text-gray-400 mb-6 flex items-center justify-center gap-1">
         Study shows new cards first, then due reviews.
+        <InfoBubble title="How studying works · where are my cards?">
+          <StudyExplainer />
+        </InfoBubble>
       </p>
 
       <Link
