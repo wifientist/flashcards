@@ -49,16 +49,19 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
     tracked = set(db.scalars(
         select(Progress.card_id).where(Progress.user_id == user_id)
     ))
-    new_stmt = select(Card).where(
-        or_(Card.owner_id.is_(None), Card.owner_id == user_id)
-    )
+    new_conds = [or_(Card.owner_id.is_(None), Card.owner_id == user_id)]
     if decks is not None:
-        new_stmt = new_stmt.where(Card.deck_id.in_(decks))
+        new_conds.append(Card.deck_id.in_(decks))
     if label_filter is not None:
-        new_stmt = new_stmt.where(label_filter)
+        new_conds.append(label_filter)
     if tracked:
-        new_stmt = new_stmt.where(Card.id.not_in(tracked))
-    new_stmt = new_stmt.order_by(func.random()).limit(limit)
+        new_conds.append(Card.id.not_in(tracked))
+
+    # Total untouched new cards in scope — lets the client offer "introduce more"
+    # instead of falsely reporting "all caught up" when the cap held some back.
+    new_available = db.scalar(select(func.count()).select_from(Card).where(*new_conds))
+
+    new_stmt = select(Card).where(*new_conds).order_by(func.random()).limit(limit)
     new_count = 0
     for card in db.scalars(new_stmt):
         queue.append(_serialize_card(card, None, include_progress=True))
@@ -89,7 +92,14 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
                 queue.append(_serialize_card(card, pbc[cid], include_progress=True))
                 due_count += 1
 
-    return {"queue": queue, "count": len(queue), "new_count": new_count, "due_count": due_count}
+    return {
+        "queue": queue,
+        "count": len(queue),
+        "new_count": new_count,
+        "due_count": due_count,
+        # New cards still untouched after this batch — drives the "introduce more" prompt.
+        "new_remaining": max(0, new_available - new_count),
+    }
 
 
 @router.get("/study/marked")

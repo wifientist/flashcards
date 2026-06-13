@@ -60,6 +60,14 @@ def test_queue_label_filter_applies_before_new_cap(user, make_card):
     assert {c["front"] for c in q["queue"]} == {"ch1-a", "ch1-b"}
 
 
+def test_queue_reports_new_remaining_beyond_cap(user, make_card):
+    for i in range(25):
+        make_card(front=f"n{i}")
+    q = user.get("/study/queue?limit=20").json()
+    assert q["new_count"] == 20
+    assert q["new_remaining"] == 5
+
+
 def test_queue_label_filter_is_or(user, make_card):
     make_card(front="a", labels=["ch1"])
     make_card(front="b", labels=["ch2"])

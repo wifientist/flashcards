@@ -24,6 +24,7 @@ export default function ReviewMode({ deckIds = [], labels = [], statuses = [] })
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [reviewed, setReviewed] = useState(0);
+  const [newRemaining, setNewRemaining] = useState(0);
   const [showLegend, setShowLegend] = useState(false);
 
   // The label filter is applied server-side so the new-card cap (20/load) is
@@ -38,6 +39,7 @@ export default function ReviewMode({ deckIds = [], labels = [], statuses = [] })
       const qs = params.toString();
       const data = await api.get(`/api/study/queue${qs ? `?${qs}` : ''}`);
       setRawQueue(data.queue || []);
+      setNewRemaining(data.new_remaining || 0);
       setIndex(0);
       setFlipped(false);
       setReviewed(0);
@@ -96,16 +98,22 @@ export default function ReviewMode({ deckIds = [], labels = [], statuses = [] })
   if (loading) return <p className="text-center mt-8">Loading study queue…</p>;
 
   if (!current) {
+    const moreNew = newRemaining > 0;
     return (
       <div className="text-center mt-16 space-y-4">
-        <p className="text-2xl">🎉 All caught up!</p>
+        <p className="text-2xl">{moreNew ? '✅ Batch done' : '🎉 All caught up!'}</p>
         <p className="text-gray-600">
           {reviewed > 0
             ? `You reviewed ${reviewed} card${reviewed === 1 ? '' : 's'}.`
-            : 'Nothing to study right now.'}
+            : 'Nothing due right now.'}
         </p>
+        {moreNew && (
+          <p className="text-gray-500 text-sm">
+            {newRemaining} new card{newRemaining === 1 ? '' : 's'} left in this scope.
+          </p>
+        )}
         <button onClick={loadQueue} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-          Check again
+          {moreNew ? `Introduce ${Math.min(newRemaining, 20)} more →` : 'Check again'}
         </button>
       </div>
     );
