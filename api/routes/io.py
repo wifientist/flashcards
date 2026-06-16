@@ -127,25 +127,35 @@ def import_cards(req: ImportRequest, db: Session = Depends(get_db),
     def _key(front: str, back: str) -> tuple:
         return (front.casefold(), back.casefold())
 
-    existing = db.execute(
-        select(Card.front, Card.back).where(Card.deck_id == req.deck_id)
-    ).all()
-    seen = {_key(f, b) for f, b in existing}
+    # Map existing cards in the deck by their (front, back) key. With
+    # update_existing, a matching row refreshes that card's labels; otherwise a
+    # match is skipped (and the map is only used as a membership set).
+    existing_by_key = {}
+    for card in db.scalars(select(Card).where(Card.deck_id == req.deck_id)):
+        existing_by_key.setdefault(_key(card.front, card.back), card)
+    seen = set(existing_by_key.keys())
 
     imported = 0
     skipped = 0
+    updated = 0
     for item in items:
         front = _clean_text(str(item.get("front") or "").strip())
         back = _clean_text(str(item.get("back") or "").strip())
         if not front or not back:
             skipped += 1
             continue
+        labels = [_clean_text(l) for l in _normalize_labels(item.get("labels"))]
         key = _key(front, back)
         if key in seen:
-            skipped += 1
+            existing = existing_by_key.get(key)
+            # Refresh labels on the matching card if asked and they differ.
+            if req.update_existing and existing is not None and list(existing.labels or []) != labels:
+                existing.labels = labels
+                updated += 1
+            else:
+                skipped += 1
             continue
         seen.add(key)
-        labels = [_clean_text(l) for l in _normalize_labels(item.get("labels"))]
         db.add(Card(
             front=front,
             back=back,
@@ -164,4 +174,4 @@ def import_cards(req: ImportRequest, db: Session = Depends(get_db),
             detail="Import failed while saving. The file may contain characters "
                    "the database can't store — try re-exporting it as UTF-8.",
         )
-    return {"imported": imported, "skipped": skipped}
+    return {"imported": imported, "skipped": skipped, "updated": updated}

@@ -35,6 +35,10 @@ class ImportRequest(BaseModel):
     format: str           # "csv" | "json"
     content: str          # raw file text
     deck_id: Optional[str] = None  # target deck; null imports unfiled cards
+    # When true, a row matching an existing card (same front+back) updates that
+    # card's labels instead of being skipped — for re-uploading a list whose
+    # labels changed. Default false keeps the safe skip-on-duplicate behavior.
+    update_existing: bool = False
 
 class CopyRequest(BaseModel):
     deck_id: Optional[str] = None  # target public deck (null = deck-less)

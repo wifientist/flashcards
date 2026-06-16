@@ -15,7 +15,7 @@ def test_import_json_counts(admin, make_deck):
     deck = make_deck()
     r = admin.post("/import/cards", json={"format": "json", "content": JSON_PAYLOAD, "deck_id": deck})
     assert r.status_code == 200
-    assert r.json() == {"imported": 2, "skipped": 1}
+    assert r.json() == {"imported": 2, "skipped": 1, "updated": 0}
     assert admin.get(f"/cards?deck_id={deck}").json()["cards"].__len__() == 2
 
 
@@ -29,8 +29,40 @@ def test_import_dedups_against_existing_and_within_batch(admin, make_deck):
         {"front": "au revoir", "back": "goodbye"},  # new
     ]})
     r = admin.post("/import/cards", json={"format": "json", "content": payload, "deck_id": deck})
-    assert r.json() == {"imported": 1, "skipped": 2}
+    assert r.json() == {"imported": 1, "skipped": 2, "updated": 0}
     assert len(admin.get(f"/cards?deck_id={deck}").json()["cards"]) == 3
+
+
+def test_import_update_existing_refreshes_labels(admin, make_deck):
+    deck = make_deck()
+    # First import: cards land without the chapter labels.
+    admin.post("/import/cards", json={"format": "json", "content": json.dumps({"cards": [
+        {"front": "bonjour", "back": "hello"},
+        {"front": "merci", "back": "thanks"},
+    ]}), "deck_id": deck})
+    # Re-upload the same fronts/backs, now WITH labels, in update mode.
+    payload = json.dumps({"cards": [
+        {"front": "bonjour", "back": "hello", "labels": ["CH1"]},
+        {"front": "merci", "back": "thanks", "labels": ["CH1"]},
+        {"front": "au revoir", "back": "goodbye", "labels": ["CH2"]},  # genuinely new
+    ]})
+    r = admin.post("/import/cards", json={
+        "format": "json", "content": payload, "deck_id": deck, "update_existing": True,
+    })
+    assert r.json() == {"imported": 1, "updated": 2, "skipped": 0}
+    cards = {c["front"]: c for c in admin.get(f"/cards?deck_id={deck}").json()["cards"]}
+    assert cards["bonjour"]["labels"] == ["CH1"]
+    assert cards["au revoir"]["labels"] == ["CH2"]
+
+
+def test_import_update_existing_noop_when_labels_match(admin, make_deck):
+    deck = make_deck()
+    admin.post("/import/cards", json={"format": "json", "content": JSON_PAYLOAD, "deck_id": deck})
+    # Same labels again in update mode → nothing changes, all skipped.
+    r = admin.post("/import/cards", json={
+        "format": "json", "content": JSON_PAYLOAD, "deck_id": deck, "update_existing": True,
+    })
+    assert r.json() == {"imported": 0, "updated": 0, "skipped": 3}
 
 
 def test_import_dedup_is_per_deck(admin, make_deck):
@@ -38,7 +70,7 @@ def test_import_dedup_is_per_deck(admin, make_deck):
     admin.post("/import/cards", json={"format": "json", "content": JSON_PAYLOAD, "deck_id": a})
     # Same cards into a different deck are NOT treated as duplicates.
     r = admin.post("/import/cards", json={"format": "json", "content": JSON_PAYLOAD, "deck_id": b})
-    assert r.json() == {"imported": 2, "skipped": 1}
+    assert r.json() == {"imported": 2, "skipped": 1, "updated": 0}
 
 
 def test_import_into_private_deck_rejected(admin, trusted):
