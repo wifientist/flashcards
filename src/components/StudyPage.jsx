@@ -8,11 +8,11 @@ import SubscribePrompt from './SubscribePrompt';
 import { useStudyFilters } from '../hooks/useStudyFilters';
 import { STATUS_OPTIONS } from '../utils/cardFilter';
 
-// Study section. Three modes over the same persistent, profile-wide filter scope
+// Study section. Two modes over the same persistent, profile-wide filter scope
 // (decks + labels + statuses, shared with the Cards page):
 //   Study  — the FSRS-prioritized review queue (grading)
 //   Flip   — casual swipe-and-flip, no grading
-//   Marked — your starred cards
+// Starred cards are reachable via the "★ Starred" status filter (no separate tab).
 export default function StudyPage() {
   const [mode, setMode] = useState('study');
   const {
@@ -41,7 +41,6 @@ export default function StudyPage() {
         <div className="flex gap-2">
           {tab('study', 'Study')}
           {tab('flip', 'Flip')}
-          {tab('marked', '★ Marked')}
         </div>
         <MultiSelect
           label="Labels"
@@ -63,13 +62,12 @@ export default function StudyPage() {
         </InfoBubble>
       </div>
 
-      {!hasSubs && mode !== 'marked' ? (
+      {!hasSubs ? (
         <SubscribePrompt />
       ) : (
         <>
           {mode === 'study' && <ReviewMode deckIds={subscribedDeckIds} {...filters} />}
           {mode === 'flip' && <BrowseMode deckIds={subscribedDeckIds} {...filters} />}
-          {mode === 'marked' && <BrowseMode marked deckIds={subscribedDeckIds} {...filters} />}
         </>
       )}
     </div>

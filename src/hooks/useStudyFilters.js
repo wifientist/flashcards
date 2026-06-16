@@ -20,7 +20,13 @@ export function useStudyFilters(enabled = true) {
   }, []);
 
   const reloadLabels = useCallback(() => {
-    api.get('/api/labels').then((d) => setLabelOptions((d.labels || []).map((l) => l.label))).catch(() => {});
+    api.get('/api/labels')
+      .then((d) => setLabelOptions(
+        (d.labels || [])
+          .map((l) => l.label)
+          .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
+      ))
+      .catch(() => {});
   }, []);
 
   useEffect(() => { reloadDecks(); reloadLabels(); }, [reloadDecks, reloadLabels]);

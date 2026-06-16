@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useStudyFilters } from '../hooks/useStudyFilters';
@@ -110,6 +111,8 @@ export default function CardsPage() {
   };
 
   const visibleCards = filterCards(cards, { statuses: selectedStatuses, labels: selectedLabels });
+  // The subscribed decks these cards are drawn from — shown so the scope is clear.
+  const subscribedDeckNames = decks.filter((d) => d.subscribed).map((d) => d.name);
 
   if (loading) return <p className="text-center mt-8">Loading cards...</p>;
 
@@ -131,6 +134,13 @@ export default function CardsPage() {
       )}
 
       {noSubs ? <SubscribePrompt what="browsing cards" /> : (<>
+      {subscribedDeckNames.length > 0 && (
+        <p className="text-center text-sm text-gray-600 mb-4">
+          <span className="font-medium text-gray-700">Decks:</span>{' '}
+          {subscribedDeckNames.join(', ')}
+          <Link to="/manage" className="ml-2 text-xs text-blue-600 hover:underline">edit</Link>
+        </p>
+      )}
       <div className="mb-4 flex justify-center items-center gap-2 flex-wrap">
         <MultiSelect
           label="Labels"

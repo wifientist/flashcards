@@ -13,7 +13,18 @@ export function AuthProvider({ children }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const data = await api.get('/api/auth/whoami');
+      let data = await api.get('/api/auth/whoami');
+      // whoami is a soft endpoint: an expired access token yields a 200 with
+      // authenticated:false, which does NOT trip the api client's 401
+      // refresh-and-retry. So on boot (e.g. a hard refresh after the 15-min
+      // access token lapsed) we'd look logged out despite a still-valid 7-day
+      // refresh token. Attempt one refresh and re-check before giving up.
+      if (!data?.authenticated) {
+        const refreshed = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
+          .then((r) => r.ok)
+          .catch(() => false);
+        if (refreshed) data = await api.get('/api/auth/whoami');
+      }
       if (data?.authenticated) {
         setUser({ email: data.email, user_id: data.user_id, roles: data.roles || [] });
       } else {
