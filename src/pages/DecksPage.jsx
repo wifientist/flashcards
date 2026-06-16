@@ -92,10 +92,26 @@ export default function DecksPage() {
     }
   };
 
-  const deleteDeck = async (deckId) => {
-    if (!window.confirm('Delete this deck? Its cards are kept but unfiled.')) return;
+  const deleteDeck = async (deck) => {
+    if (!window.confirm(`Delete deck “${deck.name}”?`)) return;
+    // If the deck has cards, let the admin choose: wipe them too, or unfile.
+    let deleteCards = false;
+    const n = deck.card_count || 0;
+    if (n > 0) {
+      deleteCards = window.confirm(
+        `This deck has ${n} card${n === 1 ? '' : 's'}.\n\n` +
+        `OK = permanently delete those cards too (and everyone’s progress on them).\n` +
+        `Cancel = keep the cards (they become unfiled).`,
+      );
+    }
     try {
-      await api.del(`/api/decks/${deckId}`);
+      const res = await api.del(`/api/decks/${deck.deck_id}${deleteCards ? '?delete_cards=true' : ''}`);
+      notify(
+        deleteCards
+          ? `Deck deleted, ${res.deleted_cards} card(s) removed.`
+          : 'Deck deleted; its cards were kept (unfiled).',
+        'success',
+      );
       await load();
     } catch (err) {
       setError(err.message);
@@ -289,7 +305,7 @@ export default function DecksPage() {
                 {isAdmin && (
                   <div className="space-x-2">
                     <button onClick={() => startEditDeck(deck)} className="text-blue-600 hover:underline">Edit</button>
-                    <button onClick={() => deleteDeck(deck.deck_id)} className="text-red-600 hover:underline">Delete</button>
+                    <button onClick={() => deleteDeck(deck)} className="text-red-600 hover:underline">Delete</button>
                   </div>
                 )}
               </div>

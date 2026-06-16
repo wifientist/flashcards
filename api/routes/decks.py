@@ -124,15 +124,27 @@ def update_deck(deck_id: str, deck_update: DeckUpdate, db: Session = Depends(get
 
 
 @router.delete("/decks/{deck_id}")
-def delete_deck(deck_id: str, db: Session = Depends(get_db),
+def delete_deck(deck_id: str, delete_cards: bool = False,
+                db: Session = Depends(get_db),
                 payload=Depends(require_roles(["admin"]))):
-    """Delete a deck - admin only. Cards are kept (deck_id -> NULL)."""
+    """Delete a deck - admin only.
+
+    By default the deck's cards are kept (deck_id -> NULL, unfiled). With
+    delete_cards=true the cards in the deck are permanently deleted first (and
+    every user's progress on them cascades away) — for wiping a deck to re-import
+    it cleanly. Cards must be removed before the deck, since deleting the deck
+    would otherwise null their deck_id and orphan them."""
     deck = db.get(Deck, deck_id)
     if not deck:
         raise HTTPException(status_code=404, detail="Deck not found")
+    deleted_cards = 0
+    if delete_cards:
+        deleted_cards = db.query(Card).filter(Card.deck_id == deck_id).delete(
+            synchronize_session=False
+        )
     db.delete(deck)
     db.commit()
-    return {"message": "Deck deleted"}
+    return {"message": "Deck deleted", "deleted_cards": deleted_cards}
 
 
 @router.post("/decks/{deck_id}/subscribe")

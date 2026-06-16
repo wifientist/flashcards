@@ -31,6 +31,17 @@ def test_delete_deck_unfiles_cards(admin, make_deck, make_card):
     assert card["deck_id"] is None
 
 
+def test_delete_deck_with_cards_removes_them(admin, make_deck, make_card):
+    deck = make_deck()
+    cid1, cid2 = make_card(deck_id=deck), make_card(deck_id=deck)
+    r = admin.delete(f"/decks/{deck}?delete_cards=true")
+    assert r.status_code == 200
+    assert r.json()["deleted_cards"] == 2
+    # both cards are gone, not merely unfiled
+    assert admin.get(f"/cards/{cid1}").status_code == 404
+    assert admin.get(f"/cards/{cid2}").status_code == 404
+
+
 def test_update_deck(admin, make_deck):
     deck = make_deck(name="old")
     assert admin.put(f"/decks/{deck}", json={"name": "new"}).status_code == 200
