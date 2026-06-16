@@ -9,7 +9,7 @@ from database import get_db
 from db_models import Card, Progress
 from models import ReviewRequest
 from roles import require_authenticated
-from routes.cards import _serialize_card, can_view_card
+from routes.cards import _serialize_card, can_view_card, label_match
 import scheduler
 
 router = APIRouter()
@@ -40,8 +40,9 @@ def study_queue(limit: int = 20, deck_id: Optional[str] = None,
     user_id = payload["user_id"]
     now = scheduler.now_utc()
     decks = _deck_id_list(deck_ids) or ([deck_id] if deck_id else None)
-    # OR across labels: a card matches if it carries any selected label.
-    label_filter = or_(*[Card.labels.any(l) for l in labels]) if labels else None
+    # OR across labels: a card matches if it carries any selected label
+    # (case-insensitive, via label_match).
+    label_filter = or_(*[label_match(l) for l in labels]) if labels else None
 
     queue = []
 

@@ -66,6 +66,21 @@ class Deck(Base):
     cards = relationship("Card", back_populates="deck")
 
 
+class DeckSubscription(Base):
+    """A user's subscription to a deck. Subscriptions are the study universe:
+    the queue and card list scope to the caller's subscribed decks. One row per
+    (user, deck); both FKs cascade so deleting a user or deck cleans up here."""
+    __tablename__ = "deck_subscriptions"
+
+    user_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    deck_id = Column(
+        String, ForeignKey("decks.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class Card(Base):
     __tablename__ = "cards"
 

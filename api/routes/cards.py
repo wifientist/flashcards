@@ -2,12 +2,12 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
 from datetime import datetime
 
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, exists
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
-from db_models import Card, Progress, Deck, User
+from db_models import Card, Progress, Deck, User, DeckSubscription
 from models import CardCreate, CardUpdate, ProgressUpdate, ProgressStatus, CopyRequest
 from roles import require_roles, get_current_user, require_authenticated
 import scheduler
@@ -43,6 +43,17 @@ def can_view_card(card: Card, payload) -> bool:
     return bool(payload) and card.owner_id == payload.get("user_id")
 
 
+def label_match(label: str):
+    """Case-insensitive test that a card carries `label` (in any letter case).
+    Uses EXISTS over unnest(labels) so '_' / '%' inside a label stay literal —
+    an `ILIKE ANY(labels)` shortcut would treat them as wildcards. Shared by the
+    card list and the study queue so label filtering matches everywhere."""
+    elem = func.unnest(Card.labels).column_valued("l")
+    return exists(
+        select(1).where(func.lower(elem) == label.lower())
+    ).correlate(Card)
+
+
 def _validate_public_deck(db: Session, deck_id):
     """A public (admin) card may only be filed into a public deck."""
     if not deck_id:
@@ -69,6 +80,10 @@ def _default_deck_id(db: Session, user_id: str) -> str:
         db.rollback()
         deck = db.scalar(select(Deck).where(Deck.owner_id == user_id))
         return deck.id if deck else None
+    # Auto-subscribe the owner to their own deck so they never silently lose
+    # access to their own cards (subscriptions scope the study universe).
+    db.add(DeckSubscription(user_id=user_id, deck_id=deck.id))
+    db.flush()
     return deck.id
 
 
@@ -156,7 +171,7 @@ def get_cards(label: Optional[str] = None, deck_id: Optional[str] = None,
     """
     stmt = select(Card)
     if label:
-        stmt = stmt.where(Card.labels.any(label))
+        stmt = stmt.where(label_match(label))
     decks = [d for d in (deck_ids.split(",") if deck_ids else []) if d] or ([deck_id] if deck_id else [])
     if decks:
         stmt = stmt.where(Card.deck_id.in_(decks))

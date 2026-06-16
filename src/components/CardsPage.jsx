@@ -7,7 +7,7 @@ import TagInput from './TagInput';
 import CardAdder from './CardAdder';
 import CopyCardModal from './CopyCardModal';
 import SuggestEditModal from './SuggestEditModal';
-import DeckMultiSelect from './study/DeckMultiSelect';
+import SubscribePrompt from './SubscribePrompt';
 import MultiSelect from './MultiSelect';
 
 export default function CardsPage() {
@@ -18,13 +18,15 @@ export default function CardsPage() {
   const [copyTarget, setCopyTarget] = useState(null);
   const [suggestTarget, setSuggestTarget] = useState(null);
 
-  // Filter scope (decks + labels + statuses) is shared with Study and persisted
-  // per profile.
+  // Deck scope comes from the user's subscriptions; labels/statuses are the
+  // persisted filters shared with Study. Guests aren't subscription-scoped (they
+  // can't subscribe), so they keep seeing all visible cards.
   const {
     decks, reloadDecks, labelOptions, reloadLabels,
-    selectedDeckIds, selectedLabels, selectedStatuses,
-    updateDecks, updateLabels, updateStatuses,
+    subscribedDeckIds, selectedLabels, selectedStatuses,
+    updateLabels, updateStatuses,
   } = useStudyFilters(!!user);
+  const noSubs = !!user && subscribedDeckIds.length === 0;
 
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,8 +46,10 @@ export default function CardsPage() {
     [decks]
   );
 
-  const deckKey = selectedDeckIds.join(',');
+  const deckKey = subscribedDeckIds.join(',');
   const load = useCallback(async () => {
+    // No subscriptions → nothing to show (the prompt renders instead).
+    if (noSubs) { setCards([]); setLoading(false); return; }
     try {
       const params = new URLSearchParams();
       if (deckKey) params.set('deck_ids', deckKey);
@@ -58,7 +62,7 @@ export default function CardsPage() {
     } finally {
       setLoading(false);
     }
-  }, [deckKey]);
+  }, [deckKey, noSubs]);
 
   useEffect(() => {
     load();
@@ -126,8 +130,8 @@ export default function CardsPage() {
         </div>
       )}
 
+      {noSubs ? <SubscribePrompt what="browsing cards" /> : (<>
       <div className="mb-4 flex justify-center items-center gap-2 flex-wrap">
-        <DeckMultiSelect decks={decks} selected={selectedDeckIds} onChange={updateDecks} />
         <MultiSelect
           label="Labels"
           allLabel="Any label"
@@ -240,6 +244,7 @@ export default function CardsPage() {
           )}
         </div>
       )}
+      </>)}
 
       {copyTarget && (
         <CopyCardModal

@@ -68,6 +68,15 @@ def test_queue_reports_new_remaining_beyond_cap(user, make_card):
     assert q["new_remaining"] == 5
 
 
+def test_queue_label_filter_is_case_insensitive(user, make_card):
+    # Cards labelled in mixed case must surface regardless of the query's casing.
+    make_card(front="a", labels=["CH2-ProtocolAnalysis"])
+    make_card(front="b", labels=["ch2-protocolanalysis"])
+    make_card(front="c", labels=["other"])
+    q = user.get("/study/queue?labels=ch2-protocolanalysis").json()
+    assert {c["front"] for c in q["queue"]} == {"a", "b"}
+
+
 def test_queue_label_filter_is_or(user, make_card):
     make_card(front="a", labels=["ch1"])
     make_card(front="b", labels=["ch2"])

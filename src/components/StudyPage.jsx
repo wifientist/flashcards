@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import ReviewMode from './study/ReviewMode';
 import BrowseMode from './study/BrowseMode';
-import DeckMultiSelect from './study/DeckMultiSelect';
 import MultiSelect from './MultiSelect';
 import InfoBubble from './InfoBubble';
 import StudyExplainer from './StudyExplainer';
+import SubscribePrompt from './SubscribePrompt';
 import { useStudyFilters } from '../hooks/useStudyFilters';
 import { STATUS_OPTIONS } from '../utils/cardFilter';
 
@@ -16,10 +16,11 @@ import { STATUS_OPTIONS } from '../utils/cardFilter';
 export default function StudyPage() {
   const [mode, setMode] = useState('study');
   const {
-    decks, labelOptions,
-    selectedDeckIds, selectedLabels, selectedStatuses,
-    updateDecks, updateLabels, updateStatuses,
+    labelOptions,
+    subscribedDeckIds, selectedLabels, selectedStatuses,
+    updateLabels, updateStatuses,
   } = useStudyFilters();
+  const hasSubs = subscribedDeckIds.length > 0;
 
   const tab = (value, label) => (
     <button
@@ -42,7 +43,6 @@ export default function StudyPage() {
           {tab('flip', 'Flip')}
           {tab('marked', '★ Marked')}
         </div>
-        <DeckMultiSelect decks={decks} selected={selectedDeckIds} onChange={updateDecks} />
         <MultiSelect
           label="Labels"
           allLabel="Any label"
@@ -63,9 +63,15 @@ export default function StudyPage() {
         </InfoBubble>
       </div>
 
-      {mode === 'study' && <ReviewMode deckIds={selectedDeckIds} {...filters} />}
-      {mode === 'flip' && <BrowseMode deckIds={selectedDeckIds} {...filters} />}
-      {mode === 'marked' && <BrowseMode marked deckIds={selectedDeckIds} {...filters} />}
+      {!hasSubs && mode !== 'marked' ? (
+        <SubscribePrompt />
+      ) : (
+        <>
+          {mode === 'study' && <ReviewMode deckIds={subscribedDeckIds} {...filters} />}
+          {mode === 'flip' && <BrowseMode deckIds={subscribedDeckIds} {...filters} />}
+          {mode === 'marked' && <BrowseMode marked deckIds={subscribedDeckIds} {...filters} />}
+        </>
+      )}
     </div>
   );
 }

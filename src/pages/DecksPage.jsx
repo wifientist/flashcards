@@ -19,6 +19,9 @@ export default function DecksPage() {
   const [error, setError] = useState('');
   const [editingDeckId, setEditingDeckId] = useState(null);
   const [editDeck, setEditDeck] = useState({ name: '', description: '' });
+  // When importing, update labels on cards that already exist (same front+back)
+  // instead of skipping them — for re-uploading a list whose labels changed.
+  const [replaceOnImport, setReplaceOnImport] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,6 +55,18 @@ export default function DecksPage() {
   const toggleFeatured = async (deck) => {
     try {
       await api.put(`/api/decks/${deck.deck_id}`, { featured: !deck.featured });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Subscriptions are the study universe: the Study queue and Cards page scope to
+  // the decks the user subscribes to here.
+  const toggleSubscribe = async (deck) => {
+    try {
+      if (deck.subscribed) await api.del(`/api/decks/${deck.deck_id}/subscribe`);
+      else await api.post(`/api/decks/${deck.deck_id}/subscribe`);
       await load();
     } catch (err) {
       setError(err.message);
@@ -111,8 +126,13 @@ export default function DecksPage() {
     const format = file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'json';
     try {
       const content = await file.text();
-      const res = await api.post('/api/import/cards', { format, content, deck_id: deckId || null });
-      notify(`Imported ${res.imported} card(s)${res.skipped ? `, skipped ${res.skipped}` : ''}.`, 'success');
+      const res = await api.post('/api/import/cards', {
+        format, content, deck_id: deckId || null, update_existing: replaceOnImport,
+      });
+      const parts = [`Imported ${res.imported}`];
+      if (res.updated) parts.push(`updated ${res.updated}`);
+      if (res.skipped) parts.push(`skipped ${res.skipped}`);
+      notify(`${parts.join(', ')} card(s).`, 'success');
       await load();
     } catch (err) {
       setError(err.message);
@@ -159,6 +179,19 @@ export default function DecksPage() {
         </form>
       )}
 
+      {isAdmin && (
+        <label className="flex items-center gap-2 text-sm text-gray-600 mb-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={replaceOnImport}
+            onChange={(e) => setReplaceOnImport(e.target.checked)}
+          />
+          <span title="Re-uploading a list whose labels changed? This updates the existing cards instead of skipping them.">
+            On import, update existing cards (replace labels) instead of skipping duplicates
+          </span>
+        </label>
+      )}
+
       {decks.length === 0 ? (
         <p className="text-center text-gray-500">No decks yet.</p>
       ) : (
@@ -198,11 +231,26 @@ export default function DecksPage() {
                       ★ Featured
                     </span>
                   )}
+                  {deck.subscribed && (
+                    <span className="ml-2 text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded align-middle">
+                      ✓ Subscribed
+                    </span>
+                  )}
                 </p>
                 {deck.description && <p className="text-sm text-gray-600">{deck.description}</p>}
                 <p className="text-xs text-gray-400 mt-1">{deck.card_count} cards</p>
               </div>
               <div className="flex flex-col items-end gap-1 text-sm">
+                <button
+                  onClick={() => toggleSubscribe(deck)}
+                  className={`px-2 py-0.5 rounded text-xs font-medium border ${
+                    deck.subscribed
+                      ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                      : 'bg-white text-green-700 border-green-600 hover:bg-green-50'
+                  }`}
+                >
+                  {deck.subscribed ? '✓ Subscribed' : '+ Subscribe'}
+                </button>
                 {canAddToDeck(deck) && (
                   <button onClick={() => setAdderDeck(deck)} className="text-blue-600 hover:underline font-medium">
                     + Card
